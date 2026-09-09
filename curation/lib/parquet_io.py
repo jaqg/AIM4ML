@@ -11,6 +11,8 @@ Public functions:
 """
 
 import os
+import math
+import warnings
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -41,6 +43,15 @@ def _make_table(rows):
         for key in row:
             if key not in known_cols and key not in extra_cols:
                 extra_cols.append(key)
+
+    # Warn if columns are not registered (development safety net)
+    if extra_cols:
+        warnings.warn(
+            f"Columns not registered in PARQUET_COLUMNS: {extra_cols}. "
+            f"Add them to schema.py to ensure consistent dtypes across batches.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     # Full column order: base first, then extras
     full_order = list(PARQUET_COLUMNS.keys()) + extra_cols
@@ -79,8 +90,12 @@ def _make_table(rows):
             data[col] = pa.array([float(v) if v is not None else None
                                   for v in values], type=pa.float64())
         elif dtype.startswith("int"):
-            data[col] = pa.array([int(v) if v is not None else None
-                                  for v in values], type=pa.int32())
+            # Null ints round-trip as float NaN through pandas to_pandas();
+            # treat both None and NaN as null here.
+            data[col] = pa.array([
+                int(v) if v is not None and not (isinstance(v, float) and math.isnan(v)) else None
+                for v in values
+            ], type=pa.int32())
         else:
             data[col] = pa.array([str(v) if v is not None else None
                                   for v in values], type=pa.string())
@@ -89,7 +104,7 @@ def _make_table(rows):
 
 
 def write_batch(path, rows):
-    """Write a batch of molecule rows to a Parquet file.
+    """Write a batch of molecule rows to a Parquet file (atomically).
 
     Parameters
     ----------
@@ -97,10 +112,15 @@ def write_batch(path, rows):
         Path to the output .parquet file.
     rows : list of dict
         Each dict has keys matching PARQUET_COLUMNS.
+
+    Writes to a temp file then os.replace() so a killed process never
+    leaves a truncated .parquet at `path`.
     """
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     table = _make_table(rows)
-    pq.write_table(table, path, compression="zstd")
+    tmp = path + ".tmp." + str(os.getpid())
+    pq.write_table(table, tmp, compression="zstd")
+    os.replace(tmp, path)
 
 
 def read_batch(path):

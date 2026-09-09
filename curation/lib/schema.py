@@ -57,9 +57,11 @@ def compound_id(canonical_smiles):
 
 # -- Parquet schema ------------------------------------------------------
 # Column names and dtypes for the internal Parquet batch files.
+# Register every column written by any pipeline stage here so dtype
+# inference never falls back to string on all-null batches.
 
 PARQUET_COLUMNS = {
-    "CompoundID":       "string",
+    # -- Input properties (from SDF tags) --
     "Energy_Ha":        "float64",
     "FormalCharge":     "int32",
     "Multiplicity":     "int16",
@@ -69,15 +71,43 @@ PARQUET_COLUMNS = {
     "LUMO_Ha":          "float64",
     "HL_Gap_Ha":        "float64",
     "PartialCharges":   "string",
+
+    # -- Structural metadata (Stage 1) --
     "num_atoms":        "int32",
     "num_bonds":        "int32",
-    "mol_block":        "string",   # SDF V2000 text block
+    "mol_block":        "string",
+
+    # -- Stage 2: energy prefilter --
+    "energy_status":    "string",
+
+    # -- Stage 3: chemical filter --
+    "filter_status":    "string",
+    "filter_reason":    "string",
+    "n_fragments":      "int32",
+
+    # -- Stage 4: dedup --
+    "CanonicalSMILES":  "string",
+    "CompoundID":       "string",
+    "AtropisomerKey":   "string",
+    "ICONF":            "int32",
+    "Formula":          "string",
+    "dedup_status":     "string",
+    "dedup_reason":     "string",
+
+    # -- Stage 6: stereo filter --
+    "stereo_status":    "string",
+
+    # -- Stage 7: reorder --
+    "reorder_status":   "string",
+
+    # -- Stage 8: conformer filter --
+    "conformer_status": "string",
+    "cluster_id":       "int32",
 }
 
 # Columns that are always present (no nulls after split).
 PARQUET_REQUIRED = ["mol_block", "num_atoms", "num_bonds",
                     "Energy_Ha", "FormalCharge", "Multiplicity"]
 
-# Optional metadata columns — may be null if tag absent in input.
-PARQUET_OPTIONAL = ["SMILES", "SourceID", "CompoundID",
-                    "HOMO_Ha", "LUMO_Ha", "HL_Gap_Ha", "PartialCharges"]
+# All non-required columns — may be null if absent at that stage.
+PARQUET_OPTIONAL = [c for c in PARQUET_COLUMNS if c not in PARQUET_REQUIRED]

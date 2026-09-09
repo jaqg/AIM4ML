@@ -59,13 +59,14 @@ def write_sdf(path, entries):
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    writer = SDWriter(path)
-    for mol, tags in entries:
-        # Reinject tags (SDMolSupplier strips them on read; we kept them)
-        for name, value in tags.items():
-            mol.SetProp(name, value)
-        writer.write(mol)
-    writer.close()
+    tmp = path + ".tmp." + str(os.getpid())
+    with SDWriter(tmp) as writer:
+        for mol, tags in entries:
+            # Reinject tags (SDMolSupplier strips them on read; we kept them)
+            for name, value in tags.items():
+                mol.SetProp(name, value)
+            writer.write(mol)
+    os.replace(tmp, path)
 
 
 def main():
@@ -77,6 +78,9 @@ def main():
     else:
         base, ext = os.path.splitext(args.input_sdf)
         out_sdf = f"{base}_valid{ext}"
+
+    from lib.provenance import record_run
+    record_run(out_sdf, "00_validate")
 
     # -- Read -------------------------------------------------------------
     print(f"Reading {args.input_sdf} ...")

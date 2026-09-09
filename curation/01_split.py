@@ -94,6 +94,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    from lib.provenance import record_run
+    record_run(args.output_dir, "01_split")
 
     os.makedirs(args.output_dir, exist_ok=True)
 

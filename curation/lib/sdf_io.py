@@ -74,7 +74,8 @@ def write_reject_sdf(path, rejected_rows, reject_reason=""):
     if parent:
         os.makedirs(parent, exist_ok=True)
 
-    with Chem.SDWriter(path) as writer:
+    tmp = path + ".tmp." + str(os.getpid())
+    with Chem.SDWriter(tmp) as writer:
         for row in rejected_rows:
             mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False,
                                        removeHs=False)
@@ -96,6 +97,7 @@ def write_reject_sdf(path, rejected_rows, reject_reason=""):
             if reject_reason:
                 mol.SetProp("reject_reason", reject_reason)
             writer.write(mol)
+    os.replace(tmp, path)
 
 
 # -- Validation -----------------------------------------------------------

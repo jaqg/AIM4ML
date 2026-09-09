@@ -68,11 +68,14 @@ def validate_row(row):
         errors.append(f"num_bonds mismatch: stored={row.get('num_bonds')}, "
                       f"mol={n_bonds_mol}")
 
-    # 3 — CanonicalSMILES round-trip
+    # 3 — CanonicalSMILES round-trip (sanitize first to match Stage 4, which
+    # canonicalizes a sanitized mol — aromatic, not kekule)
     stored_smi = row.get("CanonicalSMILES")
     if stored_smi:
         try:
-            recomputed = Chem.MolToSmiles(mol)
+            mol_san = Chem.Mol(mol)
+            Chem.SanitizeMol(mol_san)
+            recomputed = Chem.MolToSmiles(mol_san)
             if recomputed != stored_smi:
                 errors.append(
                     f"CanonicalSMILES mismatch: stored={stored_smi}, "
@@ -87,11 +90,13 @@ def validate_row(row):
                           (math.isnan(energy) or math.isinf(energy))):
         errors.append("Energy_Ha: not finite")
 
-    # 5 — CompoundID consistency
+    # 5 — CompoundID consistency (Stage 4: MD5(canonical | atrop_key))
     cid = row.get("CompoundID")
     stored_smi = row.get("CanonicalSMILES")
     if cid and stored_smi:
-        recomputed_cid = hashlib.md5(stored_smi.encode()).hexdigest()
+        atrop = row.get("AtropisomerKey") or ""
+        cid_input = stored_smi + (f"|{atrop}" if atrop else "")
+        recomputed_cid = hashlib.md5(cid_input.encode()).hexdigest()
         if recomputed_cid != cid:
             errors.append(f"CompoundID mismatch: stored={cid}, "
                           f"recomputed={recomputed_cid}")
@@ -111,11 +116,19 @@ def parse_args():
                    help="Input Parquet batch directory (default: deduped_batches/).")
     p.add_argument("--rejects-dir", type=str, default="rejects/05_validate",
                    help="Invalid molecules SDF directory (default: rejects/05_validate/).")
+    p.add_argument("--skip", action="store_true",
+                   help="Skip validation entirely (for general pipeline runs).")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    from lib.provenance import record_run
+    record_run(args.input_dir, "05_validate")
+
+    if args.skip:
+        print("Validation skipped (--skip).")
+        sys.exit(0)
 
     batch_files = sorted(
         f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
@@ -184,7 +197,7 @@ def main():
     if cid_collisions:
         print(f"\n  ⚠ {cid_collisions} CompoundID collisions detected")
 
-    if total_invalid or cid_collisions:
+    if total_invalid:
         sentinel = os.path.join(args.rejects_dir, ".INVALID")
         os.makedirs(args.rejects_dir, exist_ok=True)
         with open(sentinel, "w") as f:

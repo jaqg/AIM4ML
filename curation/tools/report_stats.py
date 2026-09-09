@@ -66,36 +66,23 @@ def print_funnel(df, total_input, rejects_dir):
     reject_counts = load_reject_counts(rejects_dir)
 
     # Sequential cumulative pass: start from total_input, subtract
-    # per-stage reject counts
+    # per-stage reject counts (read from reject SDF files).
+    # NOTE: the pipeline operates on conformer RECORDS through stage 8;
+    # "Cum. pass" tracks conformer records. The unique MOLECULE count
+    # is reported separately at the end.
     cum_pass = total_input
     print("Curation funnel")
     print("  Stage                  Cum. pass  New rejected")
     print("  ---------------------- ---------- -------------")
     print(f"  Input                 {cum_pass:10d}  {'—':>13s}")
 
-    # Final unique count from CSV (trusted)
-    n_unique = df["CompoundID"].nunique() if "CompoundID" in df.columns else len(df)
-
     for _, label, _ in _STAGE_DEFS:
         n_rejected = reject_counts.get(label, 0)
-        if "Conformer" in label:
-            # Conformer removes duplicate conformers of same CompoundID.
-            # n_rejected = molecules_in - unique_compounds_out
-            n_rejected_conformer = cum_pass - n_unique
-            if n_rejected_conformer < 0:
-                print(f"  WARNING: cum_pass={cum_pass} < n_unique={n_unique}."
-                      f"  Reject SDFs may be from mixed runs —"
-                      f"  try: make clean && make MODE=full")
-                # Fallback: use SDF count (from current run)
-                n_rejected = reject_counts.get(label, 0)
-            else:
-                n_rejected = n_rejected_conformer
-            cum_pass = n_unique
-        else:
-            cum_pass = cum_pass - n_rejected
+        cum_pass = cum_pass - n_rejected
         print(f"  {label:22s} {cum_pass:10d} {n_rejected:13d}")
 
-    # Final unique by CompoundID from CSV
+    # Final unique molecule count (stage 8 may keep multiple conformers
+    # per molecule, so conformer records can exceed unique molecules).
     if "CompoundID" in df.columns:
         n_unique = df["CompoundID"].nunique()
     else:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-09_extxyz.py — Stage 9: Build extended XYZ trajectory files.
+10_extxyz.py — Stage 10: Build extended XYZ trajectory files.
 
 Reads curated Parquet batches and writes batched extXYZ files (one per
 batch) with key:value metadata in the comment line.  ExtXYZ is the final
@@ -38,6 +38,14 @@ from lib.parquet_io import read_batch
 CNSO_ELEMENTS = {"C", "N", "S", "O"}
 
 
+def _should_exclude(row, rules):
+    """Return True if row matches any exclude rule."""
+    for col, val in rules.items():
+        if str(row.get(col, "")) == val:
+            return True
+    return False
+
+
 # -- extXYZ writer --------------------------------------------------------
 
 def mol_block_to_extxyz(mol_block, row, family="QM40"):
@@ -57,8 +65,11 @@ def mol_block_to_extxyz(mol_block, row, family="QM40"):
 
     # Atom composition
     counts = Counter(atoms)
-    formula = "".join(f"{el}{counts[el]}" if counts[el] > 1 else el
-                      for el in sorted(counts.keys()))
+    formula = row.get("Formula")
+    if not formula:
+        from rdkit.Chem import rdMolDescriptors
+        mol.UpdatePropertyCache(strict=False)
+        formula = rdMolDescriptors.CalcMolFormula(mol)
     cnso = sum(counts.get(el, 0) for el in CNSO_ELEMENTS)
 
     # Metadata
@@ -107,17 +118,23 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 9 — Build extXYZ trajectory files."
     )
-    p.add_argument("-i", "--input-dir", type=str, default="reordered_batches",
-                   help="Input Parquet batch directory (default: reordered_batches/).")
+    p.add_argument("-i", "--input-dir", type=str, default="conformer_batches",
+                   help="Input Parquet batch directory (default: conformer_batches/).")
     p.add_argument("-o", "--output-dir", type=str, default="extxyz",
                    help="Output directory for extXYZ files (default: extxyz/).")
     p.add_argument("--family", type=str, default="QM40",
                    help="Dataset family name in metadata (default: QM40).")
+    p.add_argument("--exclude", type=str, action="append", default=[],
+                   metavar="COLUMN=VALUE",
+                   help="Exclude rows where COLUMN == VALUE (repeatable). "
+                        "Example: --exclude filter_status=rejected")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    from lib.provenance import record_run
+    record_run(args.output_dir, "10_extxyz")
 
     batch_files = sorted(
         f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
@@ -129,7 +146,17 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     print(f"Input batches: {len(batch_files)} files in {args.input_dir}")
 
+    # Parse exclude rules
+    exclude_rules = {}
+    for rule in args.exclude:
+        if "=" in rule:
+            col, val = rule.split("=", 1)
+            exclude_rules[col.strip()] = val.strip()
+    if exclude_rules:
+        print(f"Excluding rows where: {exclude_rules}")
+
     total_ok = 0
+    total_excluded = 0
     total_failed = 0
 
     for fname in batch_files:
@@ -141,6 +168,11 @@ def main():
 
         frames = []
         for row in batch:
+            # Apply exclude rules
+            if _should_exclude(row, exclude_rules):
+                total_excluded += 1
+                continue
+
             frame = mol_block_to_extxyz(row["mol_block"], row,
                                          family=args.family)
             if frame is None:
@@ -149,14 +181,17 @@ def main():
                 frames.append(frame)
                 total_ok += 1
 
-        with open(out_path, "w") as f:
+        tmp = out_path + ".tmp." + str(os.getpid())
+        with open(tmp, "w") as f:
             f.writelines(frames)
+        os.replace(tmp, out_path)
 
     # -- Report ------------------------------------------------------------
-    total = total_ok + total_failed
+    total = total_ok + total_failed + total_excluded
     print(f"\nReport")
     print(f"  Total:        {total}")
     print(f"  Written:      {total_ok}")
+    print(f"  Excluded:     {total_excluded}")
     print(f"  Failed:       {total_failed}")
     print(f"  Output dir:   {args.output_dir}")
 

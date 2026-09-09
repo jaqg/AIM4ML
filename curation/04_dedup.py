@@ -29,12 +29,14 @@ if _SCRIPT_DIR not in sys.path:
 
 from rdkit import Chem
 from rdkit import RDLogger
+from rdkit import rdBase
 from rdkit.Chem import AllChem
 
 RDLogger.DisableLog("rdApp.*")
 
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
+from lib.rdkit_version import check_min_rdkit
 
 
 # -- Core logic -----------------------------------------------------------
@@ -54,14 +56,19 @@ def canonicalize_and_assign(mol_block, smiles_tag=None):
     if mol is None:
         return None, mol_block, "mol_corrupt", "could not parse mol_block"
 
-    # -- Primary path: canonicalize from existing bonds --------------------
+    # -- Primary path: sanitize + canonicalize from existing bonds ---------
+    # Sanitize on a COPY so invalid mols raise (and leave `mol` pristine for
+    # the template fallback). Sanitize validates valence/charges and perceives
+    # aromaticity, so a neutral N with 4 bonds fails loudly instead of being
+    # written through as a broken mol_block.
     try:
-        can_smi = Chem.MolToSmiles(mol)
-        # Successful — update mol_block with canonicalized mol
-        new_block = _mol_to_block(mol)
+        mol_san = Chem.Mol(mol)
+        Chem.SanitizeMol(mol_san)
+        can_smi = Chem.MolToSmiles(mol_san)
+        new_block = _mol_to_block(mol_san)
         return can_smi, new_block, "ok", ""
     except Exception:
-        pass  # kekulization failed → try template fallback
+        pass  # sanitize/kekulize failed → try template fallback
 
     # -- Template fallback (requires SMILES tag) --------------------------
     if smiles_tag is None or (isinstance(smiles_tag, float) and math.isnan(smiles_tag)) or smiles_tag == "":
@@ -74,9 +81,11 @@ def canonicalize_and_assign(mol_block, smiles_tag=None):
                "SMILES tag unparseable"
 
     try:
-        # AssignBondOrdersFromTemplate may produce warnings for symmetric mols;
-        # SanitizeMol catches bad results.
-        mol_assigned = AllChem.AssignBondOrdersFromTemplate(template, mol)
+        # Match explicit-H mol against explicit-H template (AddHs), implicit-H
+        # against implicit-H template — mirrors 03_filter fix.
+        has_h = any(a.GetSymbol() == "H" for a in mol.GetAtoms())
+        tpl = Chem.AddHs(template) if has_h else template
+        mol_assigned = AllChem.AssignBondOrdersFromTemplate(tpl, mol)
         Chem.SanitizeMol(mol_assigned)
         can_smi = Chem.MolToSmiles(mol_assigned)
         new_block = _mol_to_block(mol_assigned)
@@ -93,6 +102,27 @@ def _mol_to_block(mol):
     return block[:m_end]
 
 
+def _extract_atropisomer_key(mol):
+    """Return a canonical string encoding atropisomer bond descriptors.
+
+    Format: 'bond_idx:descriptor_int;bond_idx:descriptor_int' sorted by
+    bond_idx.  Empty string if no atropisomer bonds (with specified stereo).
+
+    Read from the in-memory mol object, NOT from a SMILES round-trip, so we
+    are unaffected by RDKit atropisomer canonicalization bugs (#7427 etc.).
+    """
+    Chem.SanitizeMol(mol, catchErrors=True)
+    si = Chem.FindPotentialStereo(mol)
+    entries = []
+    for info in si:
+        if info.type == Chem.StereoType.Bond_Atropisomer:
+            if info.descriptor != Chem.rdchem.StereoDescriptor.NoValue:
+                entries.append(f"{info.centeredOn}:{int(info.descriptor)}")
+    if not entries:
+        return ""
+    return ";".join(sorted(entries))
+
+
 # -- Main ----------------------------------------------------------------
 
 def parse_args():
@@ -105,11 +135,21 @@ def parse_args():
                    help="Output directory (default: deduped_batches/).")
     p.add_argument("--rejects-dir", type=str, default="rejects/04_dedup",
                    help="Rejected molecules SDF directory (default: rejects/04_dedup/).")
+    p.add_argument("--force-keep-rejected", action="store_true",
+                   help="Keep rejected molecules (bond_assignment_failed, mol_corrupt) "
+                        "in the output Parquet batches (default: drop them).")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    from lib.provenance import record_run
+    record_run(args.output_dir, "04_dedup")
+
+    if not check_min_rdkit():
+        print(f"ERROR: RDKit {rdBase.rdkitVersion} < 2024.03 — "
+              f"atropisomer stereochemistry unsupported", file=sys.stderr)
+        sys.exit(1)
 
     batch_files = sorted(
         f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
@@ -126,6 +166,7 @@ def main():
     total_dup = 0
     total_fail = 0
     total_corrupt = 0
+    n_written = 0
     rejected_rows = []
 
     for fname in batch_files:
@@ -141,10 +182,32 @@ def main():
             )
 
             if status == "ok":
-                cid = hashlib.md5(can_smi.encode()).hexdigest()
                 row["CanonicalSMILES"] = can_smi
-                row["CompoundID"] = cid
                 row["mol_block"] = new_block
+
+                # Reconstruct mol (includes explicit H) for formula + atrop key
+                dedup_mol = Chem.MolFromMolBlock(new_block, sanitize=False,
+                                                 removeHs=False)
+
+                # Atropisomer key: preserve atrop-enantiomers through dedup.
+                # Canonical SMILES strips atrop stereo, so the key is the only
+                # thing separating atrop-enantiomers at this stage.
+                atrop_key = ""
+                if dedup_mol is not None:
+                    atrop_key = _extract_atropisomer_key(dedup_mol)
+
+                cid_input = can_smi + "|" + atrop_key if atrop_key else can_smi
+                cid = hashlib.md5(cid_input.encode()).hexdigest()
+                row["CompoundID"] = cid
+                row["AtropisomerKey"] = atrop_key
+
+                # Compute molecular formula from mol (includes explicit H).
+                # UpdatePropertyCache computes implicit valence — required by
+                # CalcMolFormula on the unsanitized (sanitize=False) re-parse.
+                if dedup_mol is not None:
+                    dedup_mol.UpdatePropertyCache(strict=False)
+                    from rdkit.Chem import rdMolDescriptors
+                    row["Formula"] = rdMolDescriptors.CalcMolFormula(dedup_mol)
 
                 if cid in seen_ids:
                     row["dedup_status"] = "conformer_duplicate"
@@ -165,7 +228,17 @@ def main():
                 total_fail += 1
                 rejected_rows.append(row)
 
-            out_rows.append(row)
+            # Write row to output only if:
+            #   - dedup_status in ("ok", "conformer_duplicate")
+            #     (conformer dups must flow to Stage 8 for RMSD selection)
+            #   - --force-keep-rejected is set (keep everything for debugging)
+            keep_in_output = (
+                row["dedup_status"] in ("ok", "conformer_duplicate")
+                or args.force_keep_rejected
+            )
+            if keep_in_output:
+                out_rows.append(row)
+                n_written += 1
 
         write_batch(out_path, out_rows)
 
@@ -184,6 +257,10 @@ def main():
     print(f"  Conformer duplicates:  {total_dup}")
     print(f"  Bond assignment fail:  {total_fail}")
     print(f"  Mol corrupt:           {total_corrupt}")
+    print(f"  Written to output:     {n_written}")
+    if not args.force_keep_rejected and (total_fail + total_corrupt):
+        print(f"  Dropped from output:   {total_fail + total_corrupt} "
+              f"(use --force-keep-rejected to keep)")
 
     if total_dup or total_fail:
         sentinel = os.path.join(args.rejects_dir, ".REJECTED")

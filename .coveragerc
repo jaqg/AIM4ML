@@ -1,0 +1,8 @@
+[run]
+branch = True
+parallel = True
+source = curation,selection
+
+[report]
+show_missing = True
+skip_covered = True

@@ -27,13 +27,24 @@ Sample data paths in Makefiles assume workspace location:
 ## Testing
 
 ```bash
-# From repo root
-cd .. && pytest curation/tests/ -v
-cd .. && pytest selection/tests/ -v
+# From repo root (all 181 tests: 123 curation + 58 selection)
+pytest curation/tests/ selection/tests/ -v
 
-# Or from within each directory
-cd curation && make test
-cd selection && make test
+# Or per package
+pytest curation/tests/ -v
+pytest selection/tests/ -v
+make -C curation test
+make -C selection test
+```
+
+## Development
+
+Lint/format: `ruff check .` + `ruff format --check .` (config in `ruff.toml`, line-length 100).
+
+Optional git hook (ruff on staged files before every commit; full tests not run — run pytest before pushing):
+
+```bash
+git config core.hooksPath .git-hooks
 ```
 
 ## License

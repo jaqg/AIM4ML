@@ -1,6 +1,6 @@
 # AIM4ML curation pipeline — Makefile
 #
-# Run from src/curation/ directory:
+# Run from curation/ directory:
 #   make                    → full pipeline on sample data (local paths)
 #   make clean              → remove all generated files
 #   make test               → run test suite
@@ -10,7 +10,7 @@
 #   4=dedup     5=validate  6=stereo_filter  7=reorder
 #   8=conformer_filter  9=stats  10=extxyz
 #
-# Intermediate data in ../samples/ (sample mode, default).
+# Intermediate data in ../AIM4ML-workspace/samples/ (sample mode, default).
 # Use cluster paths or symlink for full data.
 # Stamp files in $(SAMPLES)/.stamps/ track completed stages.
 
@@ -28,10 +28,10 @@ INPUT_NAME := qm40_input
 # Paths
 SCRIPTS  := .
 ifeq ($(MODE),full)
-BASE      := ..
+BASE      := ../AIM4ML-workspace
 INPUT_SDF := $(BASE)/$(INPUT_NAME).sdf
 else
-BASE      := ../../samples
+BASE      := ../AIM4ML-workspace/samples
 INPUT_SDF := $(BASE)/$(INPUT_NAME).sdf
 endif
 
@@ -72,7 +72,7 @@ help:
 	@for i in 0 1 2 3 4 5 6 7 8 9 10; do echo "  make stage$$i"; done
 
 test:
-	cd ../.. && $(PYTHON) -m pytest tests/ -v
+	cd .. && $(PYTHON) -m pytest curation/tests/ -v
 
 clean:
 	rm -rf $(VALID_SDF) $(BATCHES) $(FILTERED) $(CURATED) $(DEDUPED) \

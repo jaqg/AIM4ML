@@ -145,4 +145,12 @@ def read_batch(path):
     # Base columns first, then any extra columns
     base_cols = list(PARQUET_COLUMNS.keys())
     extra_cols = [c for c in df.columns if c not in base_cols]
-    return df[base_cols + extra_cols].to_dict(orient="records")
+    rows = df[base_cols + extra_cols].to_dict(orient="records")
+    # Pandas 3.0 returns NaN for missing strings instead of None.
+    # Normalize NaN → None for string columns so downstream code
+    # that checks `if value` works correctly.
+    for row in rows:
+        for key, val in row.items():
+            if isinstance(val, float) and math.isnan(val):
+                row[key] = None
+    return rows

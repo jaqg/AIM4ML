@@ -44,8 +44,8 @@ import numpy as np
 import pandas as pd
 
 from selection.lib import coverage as cov
-from selection.lib import diversity as div
 from selection.lib import descriptors as dsc
+from selection.lib import diversity as div
 from selection.lib import schema
 
 ACYCLIC = "__acyclic__"
@@ -54,33 +54,67 @@ PASSES = ("floor", "diversity", "depth")
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("-i", "--input", required=True,
-                   help="Path to descriptors.parquet.")
-    p.add_argument("-o", "--output", required=True,
-                   help="Output directory.")
-    p.add_argument("--n", type=int, default=10_000,
-                   help="Total selection budget (number of molecules).")
-    p.add_argument("--passes", type=str, default="floor,diversity,depth",
-                   help="Comma-separated subset of floor,diversity,depth "
-                        "(each runnable alone for inspection).")
-    p.add_argument("--floor-budget", type=float, default=0.15,
-                   help="Fraction of n for the floor pass (molecule budget).")
-    p.add_argument("--floor-k", type=int, default=None,
-                   help="Alternative: cover the K rarest envs (molecule count "
-                        "falls out of set cover). Overrides --floor-budget.")
-    p.add_argument("--w", type=float, default=0.4,
-                   help="Floor-pass coverage weight in [0,1]; (1-w) on diversity.")
-    p.add_argument("--depth-budget", type=float, default=0.10,
-                   help="Fraction of n reserved for the depth pass.")
-    p.add_argument("--target-mult", type=int, default=2,
-                   help="Depth pass deepens envs to at least this multiplicity.")
-    p.add_argument("--depth-nn-sim", type=float, default=0.6,
-                   help="Depth pass NN guard: reject candidates whose max "
-                        "Tanimoto to selected exceeds this.")
-    p.add_argument("--tier1-min", type=int, default=50,
-                   help="Min scaffold family size for per-scaffold tier-1 MaxMin.")
-    p.add_argument("--ff", type=float, default=0.30,
-                   help="Fixed fraction of the diversity budget allocated to tier 1.")
+    p.add_argument("-i", "--input", required=True, help="Path to descriptors.parquet.")
+    p.add_argument("-o", "--output", required=True, help="Output directory.")
+    p.add_argument(
+        "--n", type=int, default=10_000, help="Total selection budget (number of molecules)."
+    )
+    p.add_argument(
+        "--passes",
+        type=str,
+        default="floor,diversity,depth",
+        help="Comma-separated subset of floor,diversity,depth "
+        "(each runnable alone for inspection).",
+    )
+    p.add_argument(
+        "--floor-budget",
+        type=float,
+        default=0.15,
+        help="Fraction of n for the floor pass (molecule budget).",
+    )
+    p.add_argument(
+        "--floor-k",
+        type=int,
+        default=None,
+        help="Alternative: cover the K rarest envs (molecule count "
+        "falls out of set cover). Overrides --floor-budget.",
+    )
+    p.add_argument(
+        "--w",
+        type=float,
+        default=0.4,
+        help="Floor-pass coverage weight in [0,1]; (1-w) on diversity.",
+    )
+    p.add_argument(
+        "--depth-budget",
+        type=float,
+        default=0.10,
+        help="Fraction of n reserved for the depth pass.",
+    )
+    p.add_argument(
+        "--target-mult",
+        type=int,
+        default=2,
+        help="Depth pass deepens envs to at least this multiplicity.",
+    )
+    p.add_argument(
+        "--depth-nn-sim",
+        type=float,
+        default=0.6,
+        help="Depth pass NN guard: reject candidates whose max Tanimoto to selected exceeds this.",
+    )
+    p.add_argument(
+        "--tier1-min",
+        type=int,
+        default=50,
+        help="Min scaffold family size for per-scaffold tier-1 MaxMin.",
+    )
+    p.add_argument(
+        "--ff",
+        type=float,
+        default=0.30,
+        help="Fixed fraction of the diversity budget allocated to tier 1.",
+    )
     return p.parse_args(argv)
 
 
@@ -90,25 +124,39 @@ def _scaf_key(s):
     return s
 
 
-def run_floor(atom_envs, env_nmols, env_natoms, fp_matrix, counts, max_sim,
-              args):
+def run_floor(atom_envs, env_nmols, env_natoms, fp_matrix, counts, max_sim, args):
     """Floor pass. Returns (selected indices, scores)."""
     scores = []
     if args.floor_k is not None:
         rare_order = sorted(
-            env_nmols, key=lambda e: (env_nmols[e], env_natoms.get(e, 0), e),
+            env_nmols,
+            key=lambda e: (env_nmols[e], env_natoms.get(e, 0), e),
         )
-        target = rare_order[:args.floor_k]
+        target = rare_order[: args.floor_k]
         sel, _ = cov.floor_pass(
-            atom_envs, env_nmols, env_natoms, fp_matrix,
-            len(atom_envs), args.w, target_envs=target,
-            max_sim=max_sim, counts=counts, scores=scores,
+            atom_envs,
+            env_nmols,
+            env_natoms,
+            fp_matrix,
+            len(atom_envs),
+            args.w,
+            target_envs=target,
+            max_sim=max_sim,
+            counts=counts,
+            scores=scores,
         )
     else:
         b_floor = int(round(args.floor_budget * args.n))
         sel, _ = cov.floor_pass(
-            atom_envs, env_nmols, env_natoms, fp_matrix,
-            b_floor, args.w, max_sim=max_sim, counts=counts, scores=scores,
+            atom_envs,
+            env_nmols,
+            env_natoms,
+            fp_matrix,
+            b_floor,
+            args.w,
+            max_sim=max_sim,
+            counts=counts,
+            scores=scores,
         )
     return sel, scores
 
@@ -146,8 +194,9 @@ def run_diversity(df, fp_matrix, counts, max_sim, excluded, budget_div, args):
             mask[g_idx] = True
             seed = div.centroid_seed_masked(fp_matrix, mask)
             kk = min(budgets[s], len(g_idx))
-            for i in div.maxmin_masked(fp_matrix, counts, mask, kk, seed,
-                                       max_sim=max_sim, scores=scores):
+            for i in div.maxmin_masked(
+                fp_matrix, counts, mask, kk, seed, max_sim=max_sim, scores=scores
+            ):
                 selected.append(i)
                 tier_of[i] = "tier1"
 
@@ -160,16 +209,16 @@ def run_diversity(df, fp_matrix, counts, max_sim, excluded, budget_div, args):
         mask[t2_idx] = True
         seed = div.centroid_seed_masked(fp_matrix, mask)
         kk = min(k_tier2, len(t2_idx))
-        for i in div.maxmin_masked(fp_matrix, counts, mask, kk, seed,
-                                   max_sim=max_sim, scores=scores):
+        for i in div.maxmin_masked(
+            fp_matrix, counts, mask, kk, seed, max_sim=max_sim, scores=scores
+        ):
             selected.append(i)
             tier_of[i] = "tier2"
 
     return selected, scores, tier_of
 
 
-def run_depth(atom_envs, env2mols, fp_matrix, counts, max_sim,
-              selected_set, env_nmols, args):
+def run_depth(atom_envs, env2mols, fp_matrix, counts, max_sim, selected_set, env_nmols, args):
     """Depth pass. Returns (selected indices, scores = thin-env gain)."""
     n_depth = int(round(args.depth_budget * args.n))
     if n_depth <= 0:
@@ -217,20 +266,21 @@ def build_selection(df, order_map, pass_map, tier_map, score_map):
     rows = []
     for i in sorted(order_map, key=order_map.get):
         r = df.iloc[i]
-        rows.append({
-            "CompoundID": r["CompoundID"],
-            "smiles": r["smiles"],
-            "mol_block": r["mol_block"],
-            "pass": pass_map[i],
-            "tier": tier_map.get(i, ""),
-            "score": score_map.get(i),
-            "selection_order": order_map[i],
-        })
+        rows.append(
+            {
+                "CompoundID": r["CompoundID"],
+                "smiles": r["smiles"],
+                "mol_block": r["mol_block"],
+                "pass": pass_map[i],
+                "tier": tier_map.get(i, ""),
+                "score": score_map.get(i),
+                "selection_order": order_map[i],
+            }
+        )
     return pd.DataFrame(rows, columns=schema.SELECTION_COLUMNS)
 
 
-def build_coverage_report(atom_envs, elements, env_elem, env_nmols,
-                          selected_set):
+def build_coverage_report(atom_envs, elements, env_elem, env_nmols, selected_set):
     sel_envs = set()
     for i in selected_set:
         for sub in atom_envs[i]:
@@ -243,42 +293,51 @@ def build_coverage_report(atom_envs, elements, env_elem, env_nmols,
             for eid in sub:
                 elem_pool[el].add(eid)
     elem_rows = [
-        {"dimension": "element", "key": el,
-         "n_envs_pool": len(pool), "n_envs_selected": len(pool & sel_envs),
-         "coverage": len(pool & sel_envs) / len(pool) if pool else 0.0}
+        {
+            "dimension": "element",
+            "key": el,
+            "n_envs_pool": len(pool),
+            "n_envs_selected": len(pool & sel_envs),
+            "coverage": len(pool & sel_envs) / len(pool) if pool else 0.0,
+        }
         for el, pool in sorted(elem_pool.items())
     ]
 
     # per frequency band
-    bands = [(1, 1, "1"), (2, 5, "2-5"), (6, 20, "6-20"),
-             (21, 100, "21-100"), (101, None, ">100")]
+    bands = [(1, 1, "1"), (2, 5, "2-5"), (6, 20, "6-20"), (21, 100, "21-100"), (101, None, ">100")]
     band_rows = []
     for lo, hi, label in bands:
-        pool = {eid for eid, c in env_nmols.items()
-                if c >= lo and (hi is None or c <= hi)}
+        pool = {eid for eid, c in env_nmols.items() if c >= lo and (hi is None or c <= hi)}
         if not pool:
             continue
         sel = pool & sel_envs
-        band_rows.append({"dimension": "band", "key": label,
-                          "n_envs_pool": len(pool), "n_envs_selected": len(sel),
-                          "coverage": len(sel) / len(pool)})
+        band_rows.append(
+            {
+                "dimension": "band",
+                "key": label,
+                "n_envs_pool": len(pool),
+                "n_envs_selected": len(sel),
+                "coverage": len(sel) / len(pool),
+            }
+        )
     return pd.DataFrame(elem_rows + band_rows)
 
 
-def build_thin_coverage(df, atom_envs, env_elem, env_nmols, env2mols,
-                        selected_set):
+def build_thin_coverage(df, atom_envs, env_elem, env_nmols, env2mols, selected_set):
     cids = df["CompoundID"].tolist()
     rows = []
     for eid, c in env_nmols.items():
         if c != 1:
             continue
         carrier = env2mols[eid][0]
-        rows.append({
-            "env_id": eid,
-            "element": env_elem[eid],
-            "carrier_id": cids[carrier],
-            "covered": carrier in selected_set,
-        })
+        rows.append(
+            {
+                "env_id": eid,
+                "element": env_elem[eid],
+                "carrier_id": cids[carrier],
+                "covered": carrier in selected_set,
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -291,17 +350,23 @@ def build_bond_coverage(df, selected_set):
             if i in selected_set:
                 sel_c[b] += 1
     rows = [
-        {"bond": b, "pool_count": pool_c[b], "selected_count": sel_c.get(b, 0),
-         "coverage": sel_c.get(b, 0) / pool_c[b]}
+        {
+            "bond": b,
+            "pool_count": pool_c[b],
+            "selected_count": sel_c.get(b, 0),
+            "coverage": sel_c.get(b, 0) / pool_c[b],
+        }
         for b in sorted(pool_c)
     ]
     return pd.DataFrame(rows)
 
 
 def build_property_js(df, selected_set):
-    props = {"molwt": df["molwt"].to_numpy(),
-             "tpsa": df["tpsa"].to_numpy(),
-             "energy_ha": df["energy_ha"].to_numpy()}
+    props = {
+        "molwt": df["molwt"].to_numpy(),
+        "tpsa": df["tpsa"].to_numpy(),
+        "energy_ha": df["energy_ha"].to_numpy(),
+    }
     sel_idx = sorted(selected_set)
     rows = []
     for name, pool in props.items():
@@ -347,7 +412,8 @@ def main(argv=None):
     if "floor" in enabled:
         print("[2/5] Floor pass ...")
         floor_sel, floor_scores = run_floor(
-            atom_envs, env_nmols, env_natoms, fp_matrix, counts, max_sim, args)
+            atom_envs, env_nmols, env_natoms, fp_matrix, counts, max_sim, args
+        )
         selected_set |= set(floor_sel)
 
     if "diversity" in enabled:
@@ -355,14 +421,15 @@ def main(argv=None):
         b_depth = int(round(args.depth_budget * args.n))
         budget_div = max(0, args.n - len(selected_set) - b_depth)
         div_sel, div_scores, tier_map = run_diversity(
-            df, fp_matrix, counts, max_sim, selected_set, budget_div, args)
+            df, fp_matrix, counts, max_sim, selected_set, budget_div, args
+        )
         selected_set |= set(div_sel)
 
     if "depth" in enabled:
         print("[4/5] Depth pass ...")
         depth_sel, depth_scores = run_depth(
-            atom_envs, env2mols, fp_matrix, counts, max_sim,
-            selected_set, env_nmols, args)
+            atom_envs, env2mols, fp_matrix, counts, max_sim, selected_set, env_nmols, args
+        )
         selected_set |= set(depth_sel)
 
     # assemble labels
@@ -383,16 +450,14 @@ def main(argv=None):
     sel = build_selection(df, order_map, pass_map, tier_map, score_map)
     sel.to_parquet(out_dir / "selection.parquet", engine="pyarrow", index=False)
 
-    build_coverage_report(atom_envs, elements, env_elem, env_nmols,
-                          selected_set).to_csv(reports_dir / "coverage.csv",
-                                               index=False)
-    build_thin_coverage(df, atom_envs, env_elem, env_nmols, env2mols,
-                        selected_set).to_csv(reports_dir / "thin_coverage.csv",
-                                             index=False)
-    build_bond_coverage(df, selected_set).to_csv(
-        reports_dir / "bond_types.csv", index=False)
-    build_property_js(df, selected_set).to_csv(
-        reports_dir / "property_js.csv", index=False)
+    build_coverage_report(atom_envs, elements, env_elem, env_nmols, selected_set).to_csv(
+        reports_dir / "coverage.csv", index=False
+    )
+    build_thin_coverage(df, atom_envs, env_elem, env_nmols, env2mols, selected_set).to_csv(
+        reports_dir / "thin_coverage.csv", index=False
+    )
+    build_bond_coverage(df, selected_set).to_csv(reports_dir / "bond_types.csv", index=False)
+    build_property_js(df, selected_set).to_csv(reports_dir / "property_js.csv", index=False)
 
     summary = {
         "n_requested": args.n,
@@ -401,8 +466,9 @@ def main(argv=None):
         "n_diversity": len(div_sel),
         "n_depth": len(depth_sel),
         "passes": sorted(enabled),
-        "floor_budget": None if args.floor_k is not None
-                        else int(round(args.floor_budget * args.n)),
+        "floor_budget": None
+        if args.floor_k is not None
+        else int(round(args.floor_budget * args.n)),
         "floor_k": args.floor_k,
         "w": args.w,
         "depth_budget": int(round(args.depth_budget * args.n)),
@@ -410,11 +476,12 @@ def main(argv=None):
         "tier1_min": args.tier1_min,
         "ff": args.ff,
     }
-    (out_dir / "selection_summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n")
+    (out_dir / "selection_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
 
-    print(f"Done. Selected {len(selected_set):,} / {args.n:,} "
-          f"(floor={len(floor_sel)}, diversity={len(div_sel)}, depth={len(depth_sel)})")
+    print(
+        f"Done. Selected {len(selected_set):,} / {args.n:,} "
+        f"(floor={len(floor_sel)}, diversity={len(div_sel)}, depth={len(depth_sel)})"
+    )
     print(f"  → {out_dir}")
     return 0
 

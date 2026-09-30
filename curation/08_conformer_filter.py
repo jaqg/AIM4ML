@@ -22,26 +22,26 @@ Usage:
     python3 08_conformer_filter.py -i reordered_batches/ -o conformer_batches/
 """
 
+import argparse
 import os
 import sys
-import argparse
+
 import numpy as np
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit import RDLogger
+from rdkit import Chem, RDLogger
 
 RDLogger.DisableLog("rdApp.*")
 
+from lib.parallel import parallel_map
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
-from lib.parallel import parallel_map
-
 
 # -- Heavy-atom RMSD ------------------------------------------------------
+
 
 def _kabsch_rmsd(coords_a, coords_b):
     """
@@ -117,17 +117,19 @@ def _sort_group(rows, energy_aware=True):
     """Sort a group by Energy_Ha (lowest first, NaN/missing last)."""
     rows = list(rows)
     if energy_aware:
-        rows = sorted(rows, key=lambda r: (
-            r.get("Energy_Ha") is None,
-            r.get("Energy_Ha", float("inf")),
-        ))
+        rows = sorted(
+            rows,
+            key=lambda r: (
+                r.get("Energy_Ha") is None,
+                r.get("Energy_Ha", float("inf")),
+            ),
+        )
     return rows
 
 
 def _parse_mol(row):
     """Parse a row's mol_block (unsanitized, explicit H preserved)."""
-    return Chem.MolFromMolBlock(row["mol_block"], sanitize=False,
-                                removeHs=False)
+    return Chem.MolFromMolBlock(row["mol_block"], sanitize=False, removeHs=False)
 
 
 def _compute_rmsd_matrix_serial(coords, rmsd_mode):
@@ -152,8 +154,7 @@ def _compute_rmsd_matrix_serial(coords, rmsd_mode):
     return rmsd_raw
 
 
-def _maxmin_select(rows, coords, rmsd_matrix, rmsd_threshold,
-                   coverage_guarantee=False):
+def _maxmin_select(rows, coords, rmsd_matrix, rmsd_threshold, coverage_guarantee=False):
     """MaxMin selection over a precomputed RMSD matrix (sequential).
 
     rows: energy-sorted rows (mutated in-place with conformer_status/cluster_id).
@@ -253,10 +254,15 @@ def _maxmin_select(rows, coords, rmsd_matrix, rmsd_threshold,
     return rows, n_kept, n_removed
 
 
-def _cluster_maxmin(grouped_rows, rmsd_threshold,
-                     energy_aware=True, rmsd_mode="raw",
-                     coverage_guarantee=False,
-                     coords=None, rmsd_matrix=None):
+def _cluster_maxmin(
+    grouped_rows,
+    rmsd_threshold,
+    energy_aware=True,
+    rmsd_mode="raw",
+    coverage_guarantee=False,
+    coords=None,
+    rmsd_matrix=None,
+):
     """
     MaxMin RMSD clustering on a list of rows sharing the same CompoundID.
 
@@ -282,8 +288,7 @@ def _cluster_maxmin(grouped_rows, rmsd_threshold,
         coords = [_extract_heavy_coords(_parse_mol(row)) for row in rows]
     if rmsd_matrix is None:
         rmsd_matrix = _compute_rmsd_matrix_serial(coords, rmsd_mode)
-    return _maxmin_select(rows, coords, rmsd_matrix, rmsd_threshold,
-                          coverage_guarantee)
+    return _maxmin_select(rows, coords, rmsd_matrix, rmsd_threshold, coverage_guarantee)
 
 
 # -- Main ----------------------------------------------------------------
@@ -298,45 +303,83 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 8 — Conformer deduplication (heavy-atom RMSD)."
     )
-    p.add_argument("-i", "--input-dir", type=str, default="reordered_batches",
-                   help="Input Parquet batch directory (default: reordered_batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="conformer_batches",
-                   help="Output directory (default: conformer_batches/).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/08_conformer_filter",
-                   help="Rejected molecules SDF (default: rejects/08_conformer_filter/).")
-    p.add_argument("--rmsd-threshold", type=float, default=None,
-                   help="Heavy-atom RMSD threshold (default: 1.0 Å for raw, "
-                        "0.15 for normalized).")
-    p.add_argument("--rmsd-mode", type=str, default="raw",
-                   choices=["raw", "normalized"],
-                   help="RMSD scaling: raw (default) or normalized by sqrt(N_heavy). "
-                        "EXPERIMENTAL.")
-    p.add_argument("--energy-aware", dest="energy_aware",
-                   action="store_true", default=True,
-                   help="Pre-seed clustering with lowest-energy conformer (default).")
-    p.add_argument("--no-energy-aware", dest="energy_aware",
-                   action="store_false",
-                   help="Disable energy-aware seeding.")
-    p.add_argument("--coverage-guarantee", action="store_true",
-                   help="Stop when ≥95%% of pool is within threshold (EXPERIMENTAL).")
-    p.add_argument("--force-keep-rejected", action="store_true",
-                   help="Keep removed conformers in output (default: drop them).")
-    p.add_argument("--workers", type=int, default=1,
-                   help="Worker processes for the MaxMin distance matrix "
-                        "(default: 1).")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="reordered_batches",
+        help="Input Parquet batch directory (default: reordered_batches/).",
+    )
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="conformer_batches",
+        help="Output directory (default: conformer_batches/).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/08_conformer_filter",
+        help="Rejected molecules SDF (default: rejects/08_conformer_filter/).",
+    )
+    p.add_argument(
+        "--rmsd-threshold",
+        type=float,
+        default=None,
+        help="Heavy-atom RMSD threshold (default: 1.0 Å for raw, 0.15 for normalized).",
+    )
+    p.add_argument(
+        "--rmsd-mode",
+        type=str,
+        default="raw",
+        choices=["raw", "normalized"],
+        help="RMSD scaling: raw (default) or normalized by sqrt(N_heavy). EXPERIMENTAL.",
+    )
+    p.add_argument(
+        "--energy-aware",
+        dest="energy_aware",
+        action="store_true",
+        default=True,
+        help="Pre-seed clustering with lowest-energy conformer (default).",
+    )
+    p.add_argument(
+        "--no-energy-aware",
+        dest="energy_aware",
+        action="store_false",
+        help="Disable energy-aware seeding.",
+    )
+    p.add_argument(
+        "--coverage-guarantee",
+        action="store_true",
+        help="Stop when ≥95%% of pool is within threshold (EXPERIMENTAL).",
+    )
+    p.add_argument(
+        "--force-keep-rejected",
+        action="store_true",
+        help="Keep removed conformers in output (default: drop them).",
+    )
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Worker processes for the MaxMin distance matrix (default: 1).",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "08_conformer_filter")
 
     # Set default threshold based on mode
     if args.rmsd_threshold is None:
         args.rmsd_threshold = 0.15 if args.rmsd_mode == "normalized" else 1.0
-        print(f"Note: using default threshold {args.rmsd_threshold} "
-              f"for --rmsd-mode={args.rmsd_mode}")
+        print(
+            f"Note: using default threshold {args.rmsd_threshold} for --rmsd-mode={args.rmsd_mode}"
+        )
 
     # Validate threshold range
     if args.rmsd_mode == "normalized":
@@ -345,13 +388,13 @@ def main():
         lo, hi = RMSD_THRESHOLD_MIN, RMSD_THRESHOLD_MAX
 
     if not (lo <= args.rmsd_threshold <= hi):
-        print(f"Error: --rmsd-threshold must be in range [{lo}, {hi}] "
-              f"for --rmsd-mode={args.rmsd_mode}, got {args.rmsd_threshold}")
+        print(
+            f"Error: --rmsd-threshold must be in range [{lo}, {hi}] "
+            f"for --rmsd-mode={args.rmsd_mode}, got {args.rmsd_threshold}"
+        )
         sys.exit(1)
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -385,7 +428,6 @@ def main():
 
     n_single = sum(1 for g in groups.values() if len(g) == 1)
     n_multi = sum(1 for g in groups.values() if len(g) > 1)
-    total_in_groups = sum(len(g) for g in groups.values())
 
     print(f"  CompoundIDs: {len(groups)} ({n_single} single, {n_multi} multi-conformer)")
 
@@ -404,7 +446,7 @@ def main():
         else:
             multi_groups[cid] = group
 
-    if (args.workers > 1 and multi_groups):
+    if args.workers > 1 and multi_groups:
         # Parallel distance matrix: flatten all pairs across groups, compute
         # RMSD in ONE Pool, then reconstruct matrices and run MaxMin (sequential).
         flat_coords = []
@@ -440,7 +482,10 @@ def main():
                 mat[a, b] = d
                 mat[b, a] = d
             updated, n_k, n_r = _maxmin_select(
-                rows, coords, mat, args.rmsd_threshold,
+                rows,
+                coords,
+                mat,
+                args.rmsd_threshold,
                 coverage_guarantee=args.coverage_guarantee,
             )
             total_kept += n_k
@@ -452,7 +497,8 @@ def main():
         # Serial path (workers == 1)
         for cid, group in multi_groups.items():
             updated, n_k, n_r = _cluster_maxmin(
-                group, args.rmsd_threshold,
+                group,
+                args.rmsd_threshold,
                 energy_aware=args.energy_aware,
                 rmsd_mode=args.rmsd_mode,
                 coverage_guarantee=args.coverage_guarantee,
@@ -476,26 +522,26 @@ def main():
         out_path = os.path.join(args.output_dir, fname)
         if not args.force_keep_rejected:
             n_before = len(rows)
-            rows = [r for r in rows
-                    if r.get("conformer_status") != "removed_conformer"]
+            rows = [r for r in rows if r.get("conformer_status") != "removed_conformer"]
             n_dropped += n_before - len(rows)
         write_batch(out_path, rows)
 
     # -- Reject SDF -------------------------------------------------------
     if removed_rows:
         reject_path = os.path.join(args.rejects_dir, "conformer_removed.sdf")
-        write_reject_sdf(reject_path, removed_rows,
-                         reject_reason="removed_conformer")
+        write_reject_sdf(reject_path, removed_rows, reject_reason="removed_conformer")
         print(f"  {len(removed_rows)} conformers → {reject_path}")
 
     # -- Report ------------------------------------------------------------
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total molecules:      {total}")
     print(f"  Kept:                 {total_kept}")
     print(f"  Removed conformers:   {total_removed}")
     if n_dropped:
-        print(f"  Dropped:              {n_dropped} removed_conformer "
-              f"(use --force-keep-rejected to keep)")
+        print(
+            f"  Dropped:              {n_dropped} removed_conformer "
+            f"(use --force-keep-rejected to keep)"
+        )
     if total - total_kept - total_removed > 0:
         print(f"  Other (no ID):        {total - total_kept - total_removed}")
 

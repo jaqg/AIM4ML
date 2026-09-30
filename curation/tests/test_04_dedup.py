@@ -3,32 +3,31 @@ preservation (atrop-enantiomers must survive dedup with distinct
 CompoundIDs so they reach Stage 6)."""
 
 import os
-import sys
 import subprocess
+import sys
 import tempfile
 
-import pytest
 from rdkit import Chem
 
 _SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "04_dedup.py",
+    "..",
+    "04_dedup.py",
 )
 if os.path.dirname(_SCRIPT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_SCRIPT))
 
 from lib.parquet_io import read_batch, write_batch
 
-
 # -----------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------
 
+
 def _make_atrop_block(cw=True):
     """H-free biaryl mol_block with atropisomer bond stereo (bond 6)."""
     mol = Chem.MolFromSmiles("Clc1ccccc1-c1ccccc1C")
-    stereo = (Chem.BondStereo.STEREOATROPCW if cw
-              else Chem.BondStereo.STEREOATROPCCW)
+    stereo = Chem.BondStereo.STEREOATROPCW if cw else Chem.BondStereo.STEREOATROPCCW
     mol.GetBondWithIdx(6).SetStereo(stereo)
     return Chem.MolToMolBlock(mol)
 
@@ -41,14 +40,14 @@ def _make_simple_block(smiles):
 def _make_input_row(mol_block, smiles, source_id, energy=-500.0):
     mol = Chem.MolFromMolBlock(mol_block, sanitize=False, removeHs=False)
     return {
-        "mol_block":       mol_block,
-        "num_atoms":       mol.GetNumAtoms(),
-        "num_bonds":       mol.GetNumBonds(),
-        "Energy_Ha":       energy,
-        "FormalCharge":    0,
-        "Multiplicity":    1,
-        "SMILES":          smiles,
-        "SourceID":        source_id,
+        "mol_block": mol_block,
+        "num_atoms": mol.GetNumAtoms(),
+        "num_bonds": mol.GetNumBonds(),
+        "Energy_Ha": energy,
+        "FormalCharge": 0,
+        "Multiplicity": 1,
+        "SMILES": smiles,
+        "SourceID": source_id,
     }
 
 
@@ -66,6 +65,7 @@ def _run_dedup(input_dir, output_dir, rejects_dir=None, extra_args=None):
 # Tests
 # -----------------------------------------------------------------------
 
+
 class TestDedupAtropisomer:
     def test_atrop_enantiomers_survive_dedup(self):
         """Atrop-enantiomers (CW vs CCW) get DIFFERENT CompoundIDs →
@@ -76,10 +76,8 @@ class TestDedupAtropisomer:
             os.makedirs(in_dir)
 
             rows = [
-                _make_input_row(_make_atrop_block(True),
-                                "Clc1ccccc1-c1ccccc1C", "CW", -500.0),
-                _make_input_row(_make_atrop_block(False),
-                                "Clc1ccccc1-c1ccccc1C", "CCW", -499.9),
+                _make_input_row(_make_atrop_block(True), "Clc1ccccc1-c1ccccc1C", "CW", -500.0),
+                _make_input_row(_make_atrop_block(False), "Clc1ccccc1-c1ccccc1C", "CCW", -499.9),
             ]
             write_batch(os.path.join(in_dir, "batch_000.parquet"), rows)
 
@@ -103,10 +101,8 @@ class TestDedupAtropisomer:
             os.makedirs(in_dir)
 
             rows = [
-                _make_input_row(_make_atrop_block(True),
-                                "Clc1ccccc1-c1ccccc1C", "CW_1", -500.0),
-                _make_input_row(_make_atrop_block(True),
-                                "Clc1ccccc1-c1ccccc1C", "CW_2", -499.9),
+                _make_input_row(_make_atrop_block(True), "Clc1ccccc1-c1ccccc1C", "CW_1", -500.0),
+                _make_input_row(_make_atrop_block(True), "Clc1ccccc1-c1ccccc1C", "CW_2", -499.9),
             ]
             write_batch(os.path.join(in_dir, "batch_000.parquet"), rows)
 
@@ -128,8 +124,7 @@ class TestDedupAtropisomer:
             os.makedirs(in_dir)
 
             rows = [
-                _make_input_row(_make_simple_block("CCO"), "CCO", "ETOH",
-                                -500.0),
+                _make_input_row(_make_simple_block("CCO"), "CCO", "ETOH", -500.0),
             ]
             write_batch(os.path.join(in_dir, "batch_000.parquet"), rows)
 
@@ -165,6 +160,7 @@ class TestDedupAtropisomer:
 # Hardening (defense-in-depth): invalid mol_blocks must not pass silently
 # -----------------------------------------------------------------------
 
+
 def _make_bad_zwitterion_block(smiles):
     """Explicit-H single-bond neutral mol_block with N neutral + 4 bonds
     (secondary ammonium) — invalid valence. Simulates broken upstream output."""
@@ -187,8 +183,7 @@ class TestDedupHardening:
             os.makedirs(in_dir)
 
             smi = "C[NH2+]CC(=O)[O-]"
-            row = _make_input_row(_make_bad_zwitterion_block(smi), smi,
-                                  "ZWIBUG", -500.0)
+            row = _make_input_row(_make_bad_zwitterion_block(smi), smi, "ZWIBUG", -500.0)
             write_batch(os.path.join(in_dir, "batch_000.parquet"), [row])
 
             rc, stdout, stderr = _run_dedup(in_dir, out_dir)
@@ -200,8 +195,11 @@ class TestDedupHardening:
             # output mol_block must re-parse with sanitize (stage-6 condition)
             m = Chem.MolFromMolBlock(batch[0]["mol_block"])
             assert m is not None
-            charges = {(a.GetSymbol(), a.GetFormalCharge())
-                       for a in m.GetAtoms() if a.GetFormalCharge() != 0}
+            charges = {
+                (a.GetSymbol(), a.GetFormalCharge())
+                for a in m.GetAtoms()
+                if a.GetFormalCharge() != 0
+            }
             assert ("N", 1) in charges
             assert ("O", -1) in charges
 
@@ -214,13 +212,10 @@ class TestDedupHardening:
             os.makedirs(in_dir)
 
             smi = "C[NH2+]CC(=O)[O-]"
-            row = _make_input_row(_make_bad_zwitterion_block(smi), None,
-                                  "ZWIBUG", -500.0)
+            row = _make_input_row(_make_bad_zwitterion_block(smi), None, "ZWIBUG", -500.0)
             write_batch(os.path.join(in_dir, "batch_000.parquet"), [row])
 
-            rc, stdout, stderr = _run_dedup(
-                in_dir, out_dir, extra_args=["--force-keep-rejected"]
-            )
+            rc, stdout, stderr = _run_dedup(in_dir, out_dir, extra_args=["--force-keep-rejected"])
             assert rc == 0
 
             batch = read_batch(os.path.join(out_dir, "batch_000.parquet"))
@@ -236,21 +231,22 @@ class TestDedupHardening:
             os.makedirs(in_dir)
 
             bad = _make_input_row(
-                _make_bad_zwitterion_block("C[NH2+]CC(=O)[O-]"), None,
-                "BAD", -500.0)
+                _make_bad_zwitterion_block("C[NH2+]CC(=O)[O-]"), None, "BAD", -500.0
+            )
             corrupt = {
                 "mol_block": "not a valid mol block",
-                "num_atoms": 0, "num_bonds": 0,
-                "Energy_Ha": -500.0, "FormalCharge": 0, "Multiplicity": 1,
-                "SMILES": None, "SourceID": "CORRUPT",
+                "num_atoms": 0,
+                "num_bonds": 0,
+                "Energy_Ha": -500.0,
+                "FormalCharge": 0,
+                "Multiplicity": 1,
+                "SMILES": None,
+                "SourceID": "CORRUPT",
             }
-            good1 = _make_input_row(_make_simple_block("CCO"), "CCO",
-                                    "E1", -500.0)
-            good2 = _make_input_row(_make_simple_block("CCO"), "CCO",
-                                    "E2", -499.9)
+            good1 = _make_input_row(_make_simple_block("CCO"), "CCO", "E1", -500.0)
+            good2 = _make_input_row(_make_simple_block("CCO"), "CCO", "E2", -499.9)
 
-            write_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [bad, corrupt, good1, good2])
+            write_batch(os.path.join(in_dir, "batch_000.parquet"), [bad, corrupt, good1, good2])
 
             rc, stdout, stderr = _run_dedup(in_dir, out_dir)
             assert rc == 0

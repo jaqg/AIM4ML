@@ -1,5 +1,7 @@
 """rdkit_version.py — RDKit minimum-version gate for stereochemistry features."""
+
 import re
+
 from rdkit import rdBase
 
 MIN_RDKIT = (2024, 3)  # atropisomer support (PR #6903)

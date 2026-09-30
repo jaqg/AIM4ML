@@ -5,23 +5,26 @@ while keeping genuinely different conformers (MaxMin clustering).
 """
 
 import os
-import sys
 import subprocess
+import sys
 import tempfile
+
 import numpy as np
 import pytest
 
 _SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "08_conformer_filter.py",
+    "..",
+    "08_conformer_filter.py",
 )
 if os.path.dirname(_SCRIPT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_SCRIPT))
 
 import importlib
-from rdkit import Chem
+
 from lib.parquet_io import read_batch, write_batch
 from lib.schema import compound_id
+from rdkit import Chem
 
 _conf = importlib.import_module("08_conformer_filter")
 
@@ -29,6 +32,7 @@ _conf = importlib.import_module("08_conformer_filter")
 # -----------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------
+
 
 def _make_mol_block(smiles, coords, energy_ha, source_id):
     """Create a valid SDF V2000 mol_block with 3D coordinates.
@@ -64,30 +68,36 @@ def _make_batch(path, compounds):
             mol_block = _make_mol_block(
                 comp["smiles"], conf["coords"], conf["energy"], conf["source_id"]
             )
-            mol = Chem.MolFromMolBlock(mol_block, sanitize=False,
-                                       removeHs=False)
-            rows.append({
-                "mol_block":    mol_block,
-                "num_atoms":    mol.GetNumAtoms(),
-                "num_bonds":    mol.GetNumBonds(),
-                "Energy_Ha":    conf["energy"],
-                "FormalCharge": 0,
-                "Multiplicity": 1,
-                "CompoundID":   comp["compound_id"],
-                "SMILES":       comp["smiles"],
-                "SourceID":     conf["source_id"],
-            })
+            mol = Chem.MolFromMolBlock(mol_block, sanitize=False, removeHs=False)
+            rows.append(
+                {
+                    "mol_block": mol_block,
+                    "num_atoms": mol.GetNumAtoms(),
+                    "num_bonds": mol.GetNumBonds(),
+                    "Energy_Ha": conf["energy"],
+                    "FormalCharge": 0,
+                    "Multiplicity": 1,
+                    "CompoundID": comp["compound_id"],
+                    "SMILES": comp["smiles"],
+                    "SourceID": conf["source_id"],
+                }
+            )
     write_batch(path, rows)
 
 
-def _run_filter(input_dir, output_dir, threshold=1.0,
-                rejects_dir=None, workers=1):
+def _run_filter(input_dir, output_dir, threshold=1.0, rejects_dir=None, workers=1):
     """Run stage 8 via subprocess, return (rc, stdout)."""
     cmd = [
-        sys.executable, _SCRIPT,
-        "-i", input_dir, "-o", output_dir,
-        "--rmsd-threshold", str(threshold),
-        "--workers", str(workers),
+        sys.executable,
+        _SCRIPT,
+        "-i",
+        input_dir,
+        "-o",
+        output_dir,
+        "--rmsd-threshold",
+        str(threshold),
+        "--workers",
+        str(workers),
     ]
     if rejects_dir:
         cmd.extend(["--rejects-dir", rejects_dir])
@@ -104,14 +114,14 @@ def _run_filter(input_dir, output_dir, threshold=1.0,
 
 # Helper: 8-atom ethane coords (2 C + 6 H) — H positions arbitrary, don't affect test
 _ETHANE_BASE = [
-    (0.0, 0.0, 0.0),   # C1 (heavy)
-    (1.0, 0.0, 0.0),   # C2 (heavy)
-    (0.5, 1.0, 0.0),   # H
+    (0.0, 0.0, 0.0),  # C1 (heavy)
+    (1.0, 0.0, 0.0),  # C2 (heavy)
+    (0.5, 1.0, 0.0),  # H
     (0.5, -1.0, 0.0),  # H
-    (0.5, 0.0, 1.0),   # H
-    (1.5, 1.0, 0.0),   # H
+    (0.5, 0.0, 1.0),  # H
+    (1.5, 1.0, 0.0),  # H
     (1.5, -1.0, 0.0),  # H
-    (1.5, 0.0, 1.0),   # H
+    (1.5, 0.0, 1.0),  # H
 ]
 
 # C-C distance = 1.0 Å in base; moved to 4.0 Å in different variant.
@@ -141,14 +151,14 @@ def ethane_two_different():
     coords1 = list(_ETHANE_BASE)
     # C2 moved from (1.0,0,0) to (4.0,0,0); attached H atoms follow
     coords2 = [
-        (0.0, 0.0, 0.0),   # C1 (same)
-        (4.0, 0.0, 0.0),   # C2 (moved!)
-        (0.5, 1.0, 0.0),   # H on C1 (same)
+        (0.0, 0.0, 0.0),  # C1 (same)
+        (4.0, 0.0, 0.0),  # C2 (moved!)
+        (0.5, 1.0, 0.0),  # H on C1 (same)
         (0.5, -1.0, 0.0),  # H on C1 (same)
-        (0.5, 0.0, 1.0),   # H on C1 (same)
-        (4.5, 1.0, 0.0),   # H on C2 (follows C2)
+        (0.5, 0.0, 1.0),  # H on C1 (same)
+        (4.5, 1.0, 0.0),  # H on C2 (follows C2)
         (4.5, -1.0, 0.0),  # H on C2 (follows C2)
-        (4.5, 0.0, 1.0),   # H on C2 (follows C2)
+        (4.5, 0.0, 1.0),  # H on C2 (follows C2)
     ]
     return {
         "smiles": smiles,
@@ -185,36 +195,51 @@ def two_groups_multi():
     def ethane_coords(c2x):
         # Only C1, C2 matter for heavy-atom RMSD; H arbitrary
         return [
-            (0.0, 0.0, 0.0), (c2x, 0.0, 0.0),
-            (0.5, 1.0, 0.0), (0.5, -1.0, 0.0), (0.5, 0.0, 1.0),
-            (c2x + 0.5, 1.0, 0.0), (c2x + 0.5, -1.0, 0.0), (c2x + 0.5, 0.0, 1.0),
+            (0.0, 0.0, 0.0),
+            (c2x, 0.0, 0.0),
+            (0.5, 1.0, 0.0),
+            (0.5, -1.0, 0.0),
+            (0.5, 0.0, 1.0),
+            (c2x + 0.5, 1.0, 0.0),
+            (c2x + 0.5, -1.0, 0.0),
+            (c2x + 0.5, 0.0, 1.0),
         ]
 
     def ethylene_coords(c2x):
         return [
-            (0.0, 0.0, 0.0), (c2x, 0.0, 0.0),
-            (0.0, 1.0, 0.0), (0.0, -1.0, 0.0),
-            (c2x, 1.0, 0.0), (c2x, -1.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (c2x, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, -1.0, 0.0),
+            (c2x, 1.0, 0.0),
+            (c2x, -1.0, 0.0),
         ]
 
     return [
-        {"smiles": smiles1, "compound_id": cid1,
-         "conformers": [
-             {"coords": ethane_coords(1.0), "energy": -500.0, "source_id": "A_1"},
-             {"coords": ethane_coords(4.0), "energy": -499.9, "source_id": "A_2"},
-             {"coords": ethane_coords(7.0), "energy": -499.8, "source_id": "A_3"},
-         ]},
-        {"smiles": smiles2, "compound_id": cid2,
-         "conformers": [
-             {"coords": ethylene_coords(1.3), "energy": -400.0, "source_id": "B_1"},
-             {"coords": ethylene_coords(3.0), "energy": -399.9, "source_id": "B_2"},
-         ]},
+        {
+            "smiles": smiles1,
+            "compound_id": cid1,
+            "conformers": [
+                {"coords": ethane_coords(1.0), "energy": -500.0, "source_id": "A_1"},
+                {"coords": ethane_coords(4.0), "energy": -499.9, "source_id": "A_2"},
+                {"coords": ethane_coords(7.0), "energy": -499.8, "source_id": "A_3"},
+            ],
+        },
+        {
+            "smiles": smiles2,
+            "compound_id": cid2,
+            "conformers": [
+                {"coords": ethylene_coords(1.3), "energy": -400.0, "source_id": "B_1"},
+                {"coords": ethylene_coords(3.0), "energy": -399.9, "source_id": "B_2"},
+            ],
+        },
     ]
 
 
 # -----------------------------------------------------------------------
 # Tests
 # -----------------------------------------------------------------------
+
 
 class TestConformerFilter:
     def test_single_conformer_kept(self, ethane_single):
@@ -223,8 +248,7 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_single])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_single])
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
             assert rc == 0
@@ -241,8 +265,7 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_identical])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_identical])
 
             # Test default (maxmin)
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
@@ -262,8 +285,7 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_different])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_different])
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir, threshold=1.0)
             assert rc == 0
@@ -284,16 +306,15 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_different])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_different])
 
             # Both kept (below threshold)
             for thresh in [0.5, 1.5]:
-                rc, stdout, stderr = _run_filter(in_dir, out_dir,
-                                                   threshold=thresh)
+                rc, stdout, stderr = _run_filter(in_dir, out_dir, threshold=thresh)
                 assert rc == 0
-                assert "Kept:                 2" in stdout, \
+                assert "Kept:                 2" in stdout, (
                     f"Expected both kept at threshold {thresh}"
+                )
                 assert "Removed conformers:   0" in stdout
 
             # One removed (within threshold)
@@ -312,8 +333,7 @@ class TestConformerFilter:
             _make_batch(os.path.join(in_dir, "batch_000.parquet"), [])
 
             for bad_thresh in [0.05, 10.0, -1.0]:
-                rc, stdout, stderr = _run_filter(in_dir, out_dir,
-                                                   threshold=bad_thresh)
+                rc, stdout, stderr = _run_filter(in_dir, out_dir, threshold=bad_thresh)
                 assert rc == 1, f"Expected exit 1 for threshold {bad_thresh}"
                 assert "must be in range" in stdout or "must be in range" in stderr
 
@@ -324,20 +344,16 @@ class TestConformerFilter:
             out_dir = os.path.join(tmp, "out")
             rejects_dir = os.path.join(tmp, "rejects")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_identical])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_identical])
 
-            rc, stdout, stderr = _run_filter(in_dir, out_dir,
-                                               rejects_dir=rejects_dir)
+            rc, stdout, stderr = _run_filter(in_dir, out_dir, rejects_dir=rejects_dir)
             assert rc == 0
 
-            reject_sdf = os.path.join(rejects_dir,
-                                      "conformer_removed.sdf")
+            reject_sdf = os.path.join(rejects_dir, "conformer_removed.sdf")
             assert os.path.exists(reject_sdf)
 
             # Should contain the removed conformer
-            mols = list(Chem.SDMolSupplier(reject_sdf, sanitize=False,
-                                           removeHs=False))
+            mols = list(Chem.SDMolSupplier(reject_sdf, sanitize=False, removeHs=False))
             assert len(mols) == 1
 
     def test_force_keep_rejected(self, ethane_two_identical):
@@ -346,12 +362,15 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_identical])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_identical])
 
             cmd = [
-                sys.executable, _SCRIPT,
-                "-i", in_dir, "-o", out_dir,
+                sys.executable,
+                _SCRIPT,
+                "-i",
+                in_dir,
+                "-o",
+                out_dir,
                 "--force-keep-rejected",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -368,8 +387,7 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_different])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_different])
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
             assert rc == 0
@@ -387,12 +405,15 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_different])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_different])
 
             cmd = [
-                sys.executable, _SCRIPT,
-                "-i", in_dir, "-o", out_dir,
+                sys.executable,
+                _SCRIPT,
+                "-i",
+                in_dir,
+                "-o",
+                out_dir,
                 "--no-energy-aware",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -408,13 +429,17 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_identical])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_identical])
 
             cmd = [
-                sys.executable, _SCRIPT,
-                "-i", in_dir, "-o", out_dir,
-                "--rmsd-mode", "normalized",
+                sys.executable,
+                _SCRIPT,
+                "-i",
+                in_dir,
+                "-o",
+                out_dir,
+                "--rmsd-mode",
+                "normalized",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
             assert result.returncode == 0
@@ -432,10 +457,16 @@ class TestConformerFilter:
 
             for bad in [0.01, 0.6]:
                 cmd = [
-                    sys.executable, _SCRIPT,
-                    "-i", in_dir, "-o", out_dir,
-                    "--rmsd-mode", "normalized",
-                    "--rmsd-threshold", str(bad),
+                    sys.executable,
+                    _SCRIPT,
+                    "-i",
+                    in_dir,
+                    "-o",
+                    out_dir,
+                    "--rmsd-mode",
+                    "normalized",
+                    "--rmsd-threshold",
+                    str(bad),
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 assert result.returncode == 1, f"Expected fail for {bad}"
@@ -448,13 +479,17 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_different])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_different])
 
             cmd = [
-                sys.executable, _SCRIPT,
-                "-i", in_dir, "-o", out_dir,
-                "--rmsd-threshold", "2.5",
+                sys.executable,
+                _SCRIPT,
+                "-i",
+                in_dir,
+                "-o",
+                out_dir,
+                "--rmsd-threshold",
+                "2.5",
                 "--coverage-guarantee",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -470,13 +505,17 @@ class TestConformerFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(os.path.join(in_dir, "batch_000.parquet"),
-                        [ethane_two_different])
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [ethane_two_different])
 
             cmd = [
-                sys.executable, _SCRIPT,
-                "-i", in_dir, "-o", out_dir,
-                "--rmsd-threshold", "1.0",
+                sys.executable,
+                _SCRIPT,
+                "-i",
+                in_dir,
+                "-o",
+                out_dir,
+                "--rmsd-threshold",
+                "1.0",
                 "--coverage-guarantee",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)

@@ -1,11 +1,10 @@
 """test_sdf_io.py — Unit tests for lib/sdf_io.py."""
 
-import pytest
+from lib.schema import OPTIONAL_TAGS, RECOMMENDED_TAGS, REQUIRED_TAGS
 from lib.sdf_io import read_sdf, validate_tags
-from lib.schema import REQUIRED_TAGS, RECOMMENDED_TAGS, OPTIONAL_TAGS
-
 
 # -- read_sdf -------------------------------------------------------------
+
 
 class TestReadSdf:
     def test_reads_all_molecules(self, valid_sdf):
@@ -21,6 +20,7 @@ class TestReadSdf:
 
 
 # -- validate_tags --------------------------------------------------------
+
 
 class TestValidateTags:
     SPECS = (REQUIRED_TAGS, RECOMMENDED_TAGS, OPTIONAL_TAGS)
@@ -80,10 +80,8 @@ class TestValidateTags:
 
     def test_strict_false_warns_not_rejects(self, broken_missing_required):
         entries = read_sdf(broken_missing_required)
-        passed, rejected, warnings = validate_tags(
-            entries, *self.SPECS, strict=False
-        )
-        assert len(passed) == 2       # both pass in lenient mode
+        passed, rejected, warnings = validate_tags(entries, *self.SPECS, strict=False)
+        assert len(passed) == 2  # both pass in lenient mode
         assert len(rejected) == 0
         assert len(warnings) == 2
 

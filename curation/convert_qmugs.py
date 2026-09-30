@@ -31,19 +31,21 @@ Usage:
     python3 convert_qmugs.py --data-dir ... --output /path/to/out.sdf
 """
 
+import argparse
 import os
 import sys
-import argparse
+
 import pandas as pd
-from tqdm import tqdm
 from rdkit import Chem
 from rdkit.Chem import SDWriter
+from tqdm import tqdm
 
 # -- Paths ---------------------------------------------------------------
 
 DEFAULT_DATA_DIR = "/datos_pool/mldata1/QMdatasets/QMugs"
 
 # -- Helpers -------------------------------------------------------------
+
 
 def sdf_path(data_dir, chembl_id, conf_id):
     return os.path.join(data_dir, "structures", chembl_id, f"{conf_id}.sdf")
@@ -59,16 +61,29 @@ def load_mol(path):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(
         description="Convert raw QMugs data to pipeline-standard input SDF."
     )
-    p.add_argument("--data-dir", type=str, default=DEFAULT_DATA_DIR,
-                   help=f"QMugs data directory (default: {DEFAULT_DATA_DIR}).")
-    p.add_argument("--sample", type=int, default=None,
-                   help="Convert only the first N conformers (for testing).")
-    p.add_argument("--output", type=str, default=None,
-                   help="Output SDF path (default: <data-dir>/qmugs_input.sdf).")
+    p.add_argument(
+        "--data-dir",
+        type=str,
+        default=DEFAULT_DATA_DIR,
+        help=f"QMugs data directory (default: {DEFAULT_DATA_DIR}).",
+    )
+    p.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        help="Convert only the first N conformers (for testing).",
+    )
+    p.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output SDF path (default: <data-dir>/qmugs_input.sdf).",
+    )
     return p.parse_args()
 
 
@@ -104,8 +119,9 @@ def main():
     written = 0
     skipped = 0
 
-    for _, row in tqdm(df.iterrows(), total=n_rows,
-                       desc="Converting", unit="conf", file=sys.stdout):
+    for _, row in tqdm(
+        df.iterrows(), total=n_rows, desc="Converting", unit="conf", file=sys.stdout
+    ):
         chembl_id = row["chembl_id"]
         conf_id = row["conf_id"]
 
@@ -124,14 +140,14 @@ def main():
             mol.ClearProp(prop)
 
         mol.SetProp("_Name", f"{chembl_id}_{conf_id}")
-        mol.SetProp("Energy_Ha",     f"{row['DFT_TOTAL_ENERGY']:.8f}")
-        mol.SetProp("FormalCharge",  "0")
-        mol.SetProp("Multiplicity",  "1")
-        mol.SetProp("SMILES",        row["smiles"])
-        mol.SetProp("SourceID",      f"{chembl_id}_{conf_id}")
-        mol.SetProp("HOMO_Ha",       f"{row['DFT_HOMO_ENERGY']:.6f}")
-        mol.SetProp("LUMO_Ha",       f"{row['DFT_LUMO_ENERGY']:.6f}")
-        mol.SetProp("HL_Gap_Ha",     f"{row['DFT_HOMO_LUMO_GAP']:.6f}")
+        mol.SetProp("Energy_Ha", f"{row['DFT_TOTAL_ENERGY']:.8f}")
+        mol.SetProp("FormalCharge", "0")
+        mol.SetProp("Multiplicity", "1")
+        mol.SetProp("SMILES", row["smiles"])
+        mol.SetProp("SourceID", f"{chembl_id}_{conf_id}")
+        mol.SetProp("HOMO_Ha", f"{row['DFT_HOMO_ENERGY']:.6f}")
+        mol.SetProp("LUMO_Ha", f"{row['DFT_LUMO_ENERGY']:.6f}")
+        mol.SetProp("HL_Gap_Ha", f"{row['DFT_HOMO_LUMO_GAP']:.6f}")
 
         writer.write(mol)
         written += 1
@@ -139,7 +155,7 @@ def main():
     writer.close()
 
     # -- Report ----------------------------------------------------------
-    print(f"\nDone.")
+    print("\nDone.")
     print(f"  Written:    {written}")
     print(f"  Skipped:    {skipped}")
     print(f"  Output:     {out_sdf}")

@@ -1,7 +1,6 @@
 """test_parallel.py — unit tests for lib.parallel.parallel_map."""
 
 import pytest
-
 from lib.parallel import parallel_map
 
 # fork() under pytest triggers a DeprecationWarning because pytest itself is

@@ -20,17 +20,22 @@ import sys
 
 # script filename → (label, total_key, keep_key, reject_key)
 _STAGE_META = {
-    "00_validate.py":         ("0  validate",         "Total",          "Valid",         "Rejected"),
-    "01_split.py":            ("1  split",            "Total molecules","Written",       None),
-    "02_energy_prefilter.py": ("2  energy prefilter", "Total",          "OK",            "Flagged (OLS)"),
-    "03_filter.py":           ("3  filter",           "Total",          "OK",            "Rejected"),
-    "04_dedup.py":            ("4  dedup",            "Total",          "Unique (ok)",   "Conformer duplicates"),
-    "05_validate.py":         ("5  validate",         "Total",          "OK",            "Invalid"),
-    "06_stereo_filter.py":    ("6  stereo filter",    "Total",          "Kept",          "Removed enantiomers"),
-    "07_reorder.py":          ("7  reorder",          "Total",          "OK",            "Failed"),
-    "08_conformer_filter.py": ("8  conformer filter", "Total molecules","Kept",          "Removed conformers"),
-    "09_stats.py":            ("9  stats",            "Total molecules","Processed",     None),
-    "10_extxyz.py":           ("10 extxyz",           "Total",          "Written",       "Failed"),
+    "00_validate.py": ("0  validate", "Total", "Valid", "Rejected"),
+    "01_split.py": ("1  split", "Total molecules", "Written", None),
+    "02_energy_prefilter.py": ("2  energy prefilter", "Total", "OK", "Flagged (OLS)"),
+    "03_filter.py": ("3  filter", "Total", "OK", "Rejected"),
+    "04_dedup.py": ("4  dedup", "Total", "Unique (ok)", "Conformer duplicates"),
+    "05_validate.py": ("5  validate", "Total", "OK", "Invalid"),
+    "06_stereo_filter.py": ("6  stereo filter", "Total", "Kept", "Removed enantiomers"),
+    "07_reorder.py": ("7  reorder", "Total", "OK", "Failed"),
+    "08_conformer_filter.py": (
+        "8  conformer filter",
+        "Total molecules",
+        "Kept",
+        "Removed conformers",
+    ),
+    "09_stats.py": ("9  stats", "Total molecules", "Processed", None),
+    "10_extxyz.py": ("10 extxyz", "Total", "Written", "Failed"),
 }
 
 
@@ -166,9 +171,7 @@ def _compute_anomalies(funnel):
         complexes = _as_int(s6["raw"].get("Complexes (skipped)")) or 0
         skipped = (total or 0) - kept - removed - complexes
         if skipped > 0:
-            anomalies.append(
-                f"stage 6: {skipped} skipped_no_smiles (kept, not in Kept counter)"
-            )
+            anomalies.append(f"stage 6: {skipped} skipped_no_smiles (kept, not in Kept counter)")
 
     # Stage 3: mol_corrupt / topology_warning rows are kept (only 'rejected' dropped)
     s3 = by_label.get("3  filter")
@@ -186,9 +189,7 @@ def _compute_anomalies(funnel):
     if s5:
         collisions = _as_int(s5["raw"].get("CID collisions"))
         if collisions:
-            anomalies.append(
-                f"stage 5: {collisions} CID collisions (conformer duplicates)"
-            )
+            anomalies.append(f"stage 5: {collisions} CID collisions (conformer duplicates)")
 
     # Stage 2: energy-positive should be 0
     s2 = by_label.get("2  energy prefilter")
@@ -201,6 +202,7 @@ def _compute_anomalies(funnel):
 
 
 # -- Renderers ------------------------------------------------------------
+
 
 def _fmt_count(v):
     return "-" if v is None else str(v)
@@ -286,6 +288,7 @@ def render(summary, as_markdown):
 
 # -- Main -----------------------------------------------------------------
 
+
 def _resolve_log(path):
     if os.path.isfile(path):
         return path
@@ -296,14 +299,17 @@ def _resolve_log(path):
 
 
 def main():
-    p = argparse.ArgumentParser(
-        description="One-page AIM4ML run summary from curation.log."
-    )
+    p = argparse.ArgumentParser(description="One-page AIM4ML run summary from curation.log.")
     p.add_argument("run", help="Run directory (or curation.log path).")
-    p.add_argument("--save", action="store_true",
-                   help="Also write summary.md into the run directory.")
-    p.add_argument("--md", type=str, default=None,
-                   help="Write markdown to this path (implies no terminal print).")
+    p.add_argument(
+        "--save", action="store_true", help="Also write summary.md into the run directory."
+    )
+    p.add_argument(
+        "--md",
+        type=str,
+        default=None,
+        help="Write markdown to this path (implies no terminal print).",
+    )
     args = p.parse_args()
 
     log = _resolve_log(args.run)

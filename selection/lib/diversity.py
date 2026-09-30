@@ -93,8 +93,7 @@ def maxmin_indices(matrix, k, seed_idx):
     return selected
 
 
-def maxmin_masked(matrix, counts, pool_mask, k, seed_idx, max_sim=None,
-                  scores=None):
+def maxmin_masked(matrix, counts, pool_mask, k, seed_idx, max_sim=None, scores=None):
     """MaxMin restricted to a boolean subset of the full matrix.
 
     No submatrix copy: distances are computed on the full matrix and

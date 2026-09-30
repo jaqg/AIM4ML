@@ -12,14 +12,15 @@ Usage:
 """
 
 import argparse
+import re
+
 import pandas as pd
 from rdkit import Chem
-import re
 
 
 def strip_chirality(smi):
     """Remove chirality markers (@ / @@) from a SMILES string."""
-    return re.sub(r'@+', '', smi)
+    return re.sub(r"@+", "", smi)
 
 
 def are_stereoisomers(smi_a, smi_b):
@@ -29,7 +30,7 @@ def are_stereoisomers(smi_a, smi_b):
 
 def are_tautomers(smi_a, smi_b):
     """Heuristic: same heavy-atom graph but different H positions.
-       Check if MolToSmiles after RemoveHs + sanitize produces same string."""
+    Check if MolToSmiles after RemoveHs + sanitize produces same string."""
     mol_a = Chem.MolFromSmiles(smi_a, sanitize=False)
     mol_b = Chem.MolFromSmiles(smi_b, sanitize=False)
     if mol_a is None or mol_b is None:
@@ -39,8 +40,9 @@ def are_tautomers(smi_a, smi_b):
         Chem.SanitizeMol(mol_b)
         a_no_h = Chem.RemoveHs(mol_a)
         b_no_h = Chem.RemoveHs(mol_b)
-        return Chem.MolToSmiles(a_no_h, isomericSmiles=False) == \
-               Chem.MolToSmiles(b_no_h, isomericSmiles=False)
+        return Chem.MolToSmiles(a_no_h, isomericSmiles=False) == Chem.MolToSmiles(
+            b_no_h, isomericSmiles=False
+        )
     except Exception:
         return False
 
@@ -50,8 +52,9 @@ def main():
         description="Verify T=1.0 Tanimoto pairs are structural duplicates or stereoisomers."
     )
     p.add_argument("csv", type=str, help="stats_summary.csv path.")
-    p.add_argument("--max-pairs", type=int, default=20,
-                   help="Max pairs to print details for (default: 20).")
+    p.add_argument(
+        "--max-pairs", type=int, default=20, help="Max pairs to print details for (default: 20)."
+    )
     args = p.parse_args()
 
     df = pd.read_csv(args.csv)
@@ -128,10 +131,16 @@ def main():
     print(f"  Total T=1.0 compounds:                           {len(twins)}")
 
     if n_stereo > 0:
-        n_pairs = sum(len(g) for _, g in skeleton_groups if len(g) >= 2 and len(g["CanonicalSMILES"].unique()) > 1)
-        print(f"\n  → {n_pairs} of {len(twins)} T=1.0 compounds ({100*n_pairs/len(twins):.1f}%)")
-        print(f"    are stereoisomers indistinguishable by ECFP4.")
-        print(f"    These are GENUINELY different compounds — not curation errors.")
+        n_pairs = sum(
+            len(g)
+            for _, g in skeleton_groups
+            if len(g) >= 2 and len(g["CanonicalSMILES"].unique()) > 1
+        )
+        print(
+            f"\n  → {n_pairs} of {len(twins)} T=1.0 compounds ({100 * n_pairs / len(twins):.1f}%)"
+        )
+        print("    are stereoisomers indistinguishable by ECFP4.")
+        print("    These are GENUINELY different compounds — not curation errors.")
 
     # Also check: are there pairs where skeleton differs but T=1.0?
     # That would indicate a real problem (different connectivity → same FP).

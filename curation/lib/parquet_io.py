@@ -10,15 +10,14 @@ Public functions:
     read_batch(path)            → read a Parquet file → list of dicts
 """
 
-import os
 import math
+import os
 import warnings
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pandas as pd
 
-from .schema import PARQUET_COLUMNS, PARQUET_REQUIRED, PARQUET_OPTIONAL
+from .schema import PARQUET_COLUMNS, PARQUET_OPTIONAL
 
 # Column order for the Parquet file.
 _COL_ORDER = list(PARQUET_COLUMNS.keys())
@@ -31,9 +30,10 @@ def _make_table(rows):
     in the rows are included with type inferred from the first non-None value.
     """
     if not rows:
-        arrays = {col: pa.array([], type=pa.from_numpy_dtype(dtype)
-                                if dtype != "string" else pa.string())
-                  for col, dtype in PARQUET_COLUMNS.items()}
+        arrays = {
+            col: pa.array([], type=pa.from_numpy_dtype(dtype) if dtype != "string" else pa.string())
+            for col, dtype in PARQUET_COLUMNS.items()
+        }
         return pa.table(arrays)
 
     # Discover extra columns (not in base schema)
@@ -62,43 +62,51 @@ def _make_table(rows):
         values = [row.get(col) for row in rows]
         if col in PARQUET_COLUMNS:
             dtype = PARQUET_COLUMNS[col]
-            required = col in PARQUET_REQUIRED
         else:
             # Infer dtype: if any value is a string, treat as string.
             # Otherwise use first non-None value.
             has_string = any(isinstance(v, str) for v in values if v is not None)
             if has_string:
-                dtype, required = "string", False
+                dtype = "string"
             else:
                 first = next((v for v in values if v is not None), None)
                 if isinstance(first, bool):
-                    dtype, required = "bool", False
+                    dtype = "bool"
                 elif isinstance(first, int):
-                    dtype, required = "int32", False
+                    dtype = "int32"
                 elif isinstance(first, float):
-                    dtype, required = "float64", False
+                    dtype = "float64"
                 else:
-                    dtype, required = "string", False
+                    dtype = "string"
 
         if dtype == "string":
-            data[col] = pa.array([str(v) if v is not None else None
-                                  for v in values], type=pa.string())
+            data[col] = pa.array(
+                [str(v) if v is not None else None for v in values], type=pa.string()
+            )
         elif dtype == "bool":
-            data[col] = pa.array([bool(v) if v is not None else None
-                                  for v in values], type=pa.bool_())
+            data[col] = pa.array(
+                [bool(v) if v is not None else None for v in values], type=pa.bool_()
+            )
         elif dtype.startswith("float"):
-            data[col] = pa.array([float(v) if v is not None else None
-                                  for v in values], type=pa.float64())
+            data[col] = pa.array(
+                [float(v) if v is not None else None for v in values], type=pa.float64()
+            )
         elif dtype.startswith("int"):
             # Null ints round-trip as float NaN through pandas to_pandas();
             # treat both None and NaN as null here.
-            data[col] = pa.array([
-                int(v) if v is not None and not (isinstance(v, float) and math.isnan(v)) else None
-                for v in values
-            ], type=pa.int32())
+            data[col] = pa.array(
+                [
+                    int(v)
+                    if v is not None and not (isinstance(v, float) and math.isnan(v))
+                    else None
+                    for v in values
+                ],
+                type=pa.int32(),
+            )
         else:
-            data[col] = pa.array([str(v) if v is not None else None
-                                  for v in values], type=pa.string())
+            data[col] = pa.array(
+                [str(v) if v is not None else None for v in values], type=pa.string()
+            )
 
     return pa.table(data)
 

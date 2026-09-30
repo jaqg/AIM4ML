@@ -18,17 +18,16 @@ Usage:
     python3 09_extxyz.py -i reordered_batches/ -o extxyz/
 """
 
+import argparse
 import os
 import sys
-import argparse
 from collections import Counter
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit import RDLogger
+from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors
 
 RDLogger.DisableLog("rdApp.*")
@@ -47,6 +46,7 @@ def _should_exclude(row, rules):
 
 
 # -- extXYZ writer --------------------------------------------------------
+
 
 def mol_block_to_extxyz(mol_block, row, family="QM40"):
     """
@@ -68,18 +68,19 @@ def mol_block_to_extxyz(mol_block, row, family="QM40"):
     formula = row.get("Formula")
     if not formula:
         from rdkit.Chem import rdMolDescriptors
+
         mol.UpdatePropertyCache(strict=False)
         formula = rdMolDescriptors.CalcMolFormula(mol)
     cnso = sum(counts.get(el, 0) for el in CNSO_ELEMENTS)
 
     # Metadata
-    src_id  = row.get("SourceID", "")
-    cid     = row.get("CompoundID", "")
-    charge  = row.get("FormalCharge", 0)
-    mult    = row.get("Multiplicity", 1)
-    energy  = row.get("Energy_Ha", "")
-    smiles  = row.get("CanonicalSMILES", "")
-    iconf   = row.get("ICONF", 1)
+    src_id = row.get("SourceID", "")
+    cid = row.get("CompoundID", "")
+    charge = row.get("FormalCharge", 0)
+    mult = row.get("Multiplicity", 1)
+    energy = row.get("Energy_Ha", "")
+    smiles = row.get("CanonicalSMILES", "")
+    iconf = row.get("ICONF", 1)
 
     # Descriptors from CanonicalSMILES (lightweight, no external CSV needed)
     tpsa_val, logp_val, nrot_val = "", "", ""
@@ -95,13 +96,15 @@ def mol_block_to_extxyz(mol_block, row, family="QM40"):
             except Exception:
                 pass
 
-    meta = (f"SourceID,{src_id},CompoundID,{cid},"
-            f"Formula,{formula},Nat,{nat},CNSO,{cnso},"
-            f"chrg,{charge},mult,{mult},"
-            f"E,{energy},fmax,,Family,{family},"
-            f"smiles,{smiles},"
-            f"tpsa,{tpsa_val},logp,{logp_val},nrot,{nrot_val},"
-            f"nfrag,1,iconf,{iconf}")
+    meta = (
+        f"SourceID,{src_id},CompoundID,{cid},"
+        f"Formula,{formula},Nat,{nat},CNSO,{cnso},"
+        f"chrg,{charge},mult,{mult},"
+        f"E,{energy},fmax,,Family,{family},"
+        f"smiles,{smiles},"
+        f"tpsa,{tpsa_val},logp,{logp_val},nrot,{nrot_val},"
+        f"nfrag,1,iconf,{iconf}"
+    )
 
     # Atom lines
     lines = [f"{nat}\n", f"{meta}\n"]
@@ -114,31 +117,48 @@ def mol_block_to_extxyz(mol_block, row, family="QM40"):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
-    p = argparse.ArgumentParser(
-        description="AIM4ML Stage 9 — Build extXYZ trajectory files."
+    p = argparse.ArgumentParser(description="AIM4ML Stage 9 — Build extXYZ trajectory files.")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="conformer_batches",
+        help="Input Parquet batch directory (default: conformer_batches/).",
     )
-    p.add_argument("-i", "--input-dir", type=str, default="conformer_batches",
-                   help="Input Parquet batch directory (default: conformer_batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="extxyz",
-                   help="Output directory for extXYZ files (default: extxyz/).")
-    p.add_argument("--family", type=str, default="QM40",
-                   help="Dataset family name in metadata (default: QM40).")
-    p.add_argument("--exclude", type=str, action="append", default=[],
-                   metavar="COLUMN=VALUE",
-                   help="Exclude rows where COLUMN == VALUE (repeatable). "
-                        "Example: --exclude filter_status=rejected")
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="extxyz",
+        help="Output directory for extXYZ files (default: extxyz/).",
+    )
+    p.add_argument(
+        "--family",
+        type=str,
+        default="QM40",
+        help="Dataset family name in metadata (default: QM40).",
+    )
+    p.add_argument(
+        "--exclude",
+        type=str,
+        action="append",
+        default=[],
+        metavar="COLUMN=VALUE",
+        help="Exclude rows where COLUMN == VALUE (repeatable). "
+        "Example: --exclude filter_status=rejected",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "10_extxyz")
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -160,7 +180,7 @@ def main():
     total_failed = 0
 
     for fname in batch_files:
-        in_path  = os.path.join(args.input_dir, fname)
+        in_path = os.path.join(args.input_dir, fname)
         batch = read_batch(in_path)
 
         base = os.path.splitext(fname)[0]
@@ -173,8 +193,7 @@ def main():
                 total_excluded += 1
                 continue
 
-            frame = mol_block_to_extxyz(row["mol_block"], row,
-                                         family=args.family)
+            frame = mol_block_to_extxyz(row["mol_block"], row, family=args.family)
             if frame is None:
                 total_failed += 1
             else:
@@ -188,7 +207,7 @@ def main():
 
     # -- Report ------------------------------------------------------------
     total = total_ok + total_failed + total_excluded
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:        {total}")
     print(f"  Written:      {total_ok}")
     print(f"  Excluded:     {total_excluded}")

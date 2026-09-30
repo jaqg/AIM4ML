@@ -33,8 +33,7 @@ class TestMatrixMaxmin:
         assert 0 <= idx < 4
 
     def test_maxmin_k_geq_n(self):
-        assert div.maxmin_indices(np.eye(5, dtype=np.float32), 10, 0) == \
-            [0, 1, 2, 3, 4]
+        assert div.maxmin_indices(np.eye(5, dtype=np.float32), 10, 0) == [0, 1, 2, 3, 4]
 
     def test_maxmin_distinct_and_seeded(self):
         sel = div.maxmin_indices(np.eye(6, dtype=np.float32), 3, 2)

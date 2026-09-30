@@ -1,15 +1,15 @@
 """test_05_validate.py — Regression tests for Stage 5 integrity checks."""
 
-import os
-import sys
 import hashlib
 import importlib
+import os
+import sys
 
-import pytest
 from rdkit import Chem
 
 _SCRIPTS = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..",
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
 )
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
@@ -53,8 +53,6 @@ class TestValidateCanonical:
         (Stage 4 appends atrop_key, old Stage 5 ignored it)."""
         row = _stage4_row("CCO")
         row["AtropisomerKey"] = "6:5"
-        row["CompoundID"] = hashlib.md5(
-            (row["CanonicalSMILES"] + "|6:5").encode()
-        ).hexdigest()
+        row["CompoundID"] = hashlib.md5((row["CanonicalSMILES"] + "|6:5").encode()).hexdigest()
         status, errors = _validate.validate_row(row)
         assert status == "ok", errors

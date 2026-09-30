@@ -13,20 +13,19 @@ Usage:
 
 import argparse
 import os
-import pandas as pd
-import numpy as np
 
+import pandas as pd
 
 # -- SDF counting ---------------------------------------------------------
 
 # Map stage number → (label, reject_sdf_name, keep_status_value)
 # Order must match pipeline flow for cumulative pass.
 _STAGE_DEFS = [
-    ("02", "Energy prefilter",   "energy_flagged.sdf"),
-    ("03", "Chemical filter",    "filter_rejected.sdf"),
-    ("06", "Stereo filter",      "stereo_removed.sdf"),
-    ("07", "Reorder",            "reorder_failed.sdf"),
-    ("08", "Conformer filter",   "conformer_removed.sdf"),
+    ("02", "Energy prefilter", "energy_flagged.sdf"),
+    ("03", "Chemical filter", "filter_rejected.sdf"),
+    ("06", "Stereo filter", "stereo_removed.sdf"),
+    ("07", "Reorder", "reorder_failed.sdf"),
+    ("08", "Conformer filter", "conformer_removed.sdf"),
 ]
 
 
@@ -44,9 +43,7 @@ def load_reject_counts(rejects_dir):
     if not rejects_dir or not os.path.isdir(rejects_dir):
         return counts
     for stage_num, label, sdf_name in _STAGE_DEFS:
-        sdf_path = os.path.join(rejects_dir,
-                                f"{stage_num}_{sdf_name.split('_')[0]}",
-                                sdf_name)
+        sdf_path = os.path.join(rejects_dir, f"{stage_num}_{sdf_name.split('_')[0]}", sdf_name)
         # Also try the full stage name format: rejects/02_energy_prefilter/
         if not os.path.isfile(sdf_path):
             # Search for any directory starting with the stage number
@@ -61,6 +58,7 @@ def load_reject_counts(rejects_dir):
 
 
 # -- Funnel ---------------------------------------------------------------
+
 
 def print_funnel(df, total_input, rejects_dir):
     reject_counts = load_reject_counts(rejects_dir)
@@ -93,6 +91,7 @@ def print_funnel(df, total_input, rejects_dir):
 
 # -- Descriptors ----------------------------------------------------------
 
+
 def print_descriptors(df):
     print("Descriptors")
     if len(df) == 0:
@@ -102,8 +101,10 @@ def print_descriptors(df):
 
     if "num_atoms" in df.columns:
         nat = df["num_atoms"].dropna().astype(int)
-        print(f"  NAT           mean={nat.mean():.0f} median={nat.median():.0f} "
-              f"min={nat.min()} max={nat.max()}")
+        print(
+            f"  NAT           mean={nat.mean():.0f} median={nat.median():.0f} "
+            f"min={nat.min()} max={nat.max()}"
+        )
         bins = [(12, 40), (41, 65), (66, 92)]
         for lo, hi in bins:
             n = int(((nat >= lo) & (nat <= hi)).sum())
@@ -116,26 +117,33 @@ def print_descriptors(df):
     if "MolWt" in df.columns:
         mw = df["MolWt"].dropna()
         if len(mw):
-            print(f"  MolWt         mean={mw.mean():.1f} median={mw.median():.1f} "
-                  f"min={mw.min():.1f} max={mw.max():.1f}")
+            print(
+                f"  MolWt         mean={mw.mean():.1f} median={mw.median():.1f} "
+                f"min={mw.min():.1f} max={mw.max():.1f}"
+            )
 
     if "TPSA" in df.columns:
         tpsa = df["TPSA"].dropna()
         if len(tpsa):
             pct_lt_140 = 100 * (tpsa < 140).sum() / len(tpsa)
-            print(f"  TPSA          mean={tpsa.mean():.1f} median={tpsa.median():.1f} "
-                  f"% < 140 = {pct_lt_140:.1f}%")
+            print(
+                f"  TPSA          mean={tpsa.mean():.1f} median={tpsa.median():.1f} "
+                f"% < 140 = {pct_lt_140:.1f}%"
+            )
 
     if "Energy_Ha" in df.columns:
         ene = df["Energy_Ha"].dropna()
         if len(ene):
-            print(f"  Energy (Ha)   mean={ene.mean():.4f} median={ene.median():.4f} "
-                  f"min={ene.min():.4f} max={ene.max():.4f}")
+            print(
+                f"  Energy (Ha)   mean={ene.mean():.4f} median={ene.median():.4f} "
+                f"min={ene.min():.4f} max={ene.max():.4f}"
+            )
 
     print()
 
 
 # -- Tanimoto -------------------------------------------------------------
+
 
 def print_tanimoto(df):
     if "max_tanimoto" not in df.columns or len(df) == 0:
@@ -152,28 +160,32 @@ def print_tanimoto(df):
     n_t85 = int((tani > 0.85).sum())
 
     print("Tanimoto (unique CompoundIDs)")
-    print(f"  mean={tani.mean():.3f} median={tani.median():.3f} "
-          f"max={tani.max():.3f}")
-    print(f"  T=1.000 (twins): {n_t1} ({100*n_t1/len(tani):.1f}%)")
-    print(f"  T>0.85  (near-dups): {n_t85} ({100*n_t85/len(tani):.1f}%)")
+    print(f"  mean={tani.mean():.3f} median={tani.median():.3f} max={tani.max():.3f}")
+    print(f"  T=1.000 (twins): {n_t1} ({100 * n_t1 / len(tani):.1f}%)")
+    print(f"  T>0.85  (near-dups): {n_t85} ({100 * n_t85 / len(tani):.1f}%)")
     print()
 
 
 # -- Main ----------------------------------------------------------------
 
+
 def main():
-    p = argparse.ArgumentParser(
-        description="Extract structured statistics from stats_summary.csv."
-    )
+    p = argparse.ArgumentParser(description="Extract structured statistics from stats_summary.csv.")
     p.add_argument("csv", type=str, help="Path to stats_summary.csv.")
-    p.add_argument("--total-input", type=int, required=True,
-                   help="Total molecules entering curation pipeline (stage 0 count).")
-    p.add_argument("--rejects-dir", type=str, default="",
-                   help="Path to rejects/ directory for per-stage SDF counts.")
-    p.add_argument("--funnel-only", action="store_true",
-                   help="Print only the curation funnel.")
-    p.add_argument("--debug", action="store_true",
-                   help="Print first rows and column names.")
+    p.add_argument(
+        "--total-input",
+        type=int,
+        required=True,
+        help="Total molecules entering curation pipeline (stage 0 count).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="",
+        help="Path to rejects/ directory for per-stage SDF counts.",
+    )
+    p.add_argument("--funnel-only", action="store_true", help="Print only the curation funnel.")
+    p.add_argument("--debug", action="store_true", help="Print first rows and column names.")
     args = p.parse_args()
 
     df = pd.read_csv(args.csv)
@@ -181,8 +193,13 @@ def main():
     if args.debug:
         print(f"Columns: {sorted(df.columns.tolist())}")
         print(f"Rows: {len(df)}")
-        for col in ["filter_status", "stereo_status", "energy_status",
-                     "reorder_status", "conformer_status"]:
+        for col in [
+            "filter_status",
+            "stereo_status",
+            "energy_status",
+            "reorder_status",
+            "conformer_status",
+        ]:
             if col in df.columns:
                 print(f"{col}: {df[col].value_counts().to_dict()}")
         print(f"\nFirst 3 rows:\n{df.head(3).to_string()}")

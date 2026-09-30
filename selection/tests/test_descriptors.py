@@ -1,6 +1,5 @@
 """test_descriptors.py — unit tests for lib/descriptors.py."""
 
-import pytest
 from rdkit import Chem
 
 from selection.lib import descriptors as dsc

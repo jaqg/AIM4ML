@@ -1,20 +1,19 @@
 """test_01_split.py — Integration tests for 01_split.py."""
 
 import os
-import sys
 import subprocess
+import sys
 import tempfile
-import pytest
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "01_split.py",
+    "..",
+    "01_split.py",
 )
 
 
 def run_split(input_sdf, output_dir, batch_size=50):
-    cmd = [sys.executable, SCRIPT, input_sdf,
-           "-o", output_dir, "--batch-size", str(batch_size)]
+    cmd = [sys.executable, SCRIPT, input_sdf, "-o", output_dir, "--batch-size", str(batch_size)]
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.returncode, result.stdout
 
@@ -37,6 +36,7 @@ class TestSplit:
         with tempfile.TemporaryDirectory() as tmp:
             run_split(valid_sdf, tmp, batch_size=2)
             from lib.parquet_io import read_batch
+
             files = sorted(f for f in os.listdir(tmp) if f.endswith(".parquet"))
             # 3 molecules, batch_size=2 → 2 batches (2 + 1)
             assert len(files) == 2
@@ -49,6 +49,7 @@ class TestSplit:
         with tempfile.TemporaryDirectory() as tmp:
             run_split(valid_sdf, tmp, batch_size=10)
             from lib.parquet_io import read_batch
+
             batch = read_batch(os.path.join(tmp, "batch_0000.parquet"))
             r = batch[0]
             assert isinstance(r["Energy_Ha"], float)
@@ -62,6 +63,7 @@ class TestSplit:
             run_split(valid_sdf, tmp, batch_size=10)
             from lib.parquet_io import read_batch
             from rdkit import Chem
+
             batch = read_batch(os.path.join(tmp, "batch_0000.parquet"))
             for row in batch:
                 mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False)

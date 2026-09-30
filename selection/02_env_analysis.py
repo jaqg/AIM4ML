@@ -38,26 +38,35 @@ def read_descriptors(path):
 def build_env_frequency(df):
     """env-level frequency table, rarity-sorted."""
     env_elem, env_natoms, env_nmols = cov.env_frequency(
-        df["atom_envs"].tolist(), df["heavy_elements"].tolist(),
+        df["atom_envs"].tolist(),
+        df["heavy_elements"].tolist(),
     )
     rows = [
-        {"env_id": eid, "element": env_elem[eid],
-         "n_atoms": env_natoms[eid], "n_mols": env_nmols[eid]}
+        {
+            "env_id": eid,
+            "element": env_elem[eid],
+            "n_atoms": env_natoms[eid],
+            "n_mols": env_nmols[eid],
+        }
         for eid in env_elem
     ]
     hist = pd.DataFrame(rows, columns=schema.ENV_FREQUENCY_COLUMNS)
     return hist.sort_values(
-        ["n_mols", "n_atoms", "env_id"], ascending=[True, True, True],
+        ["n_mols", "n_atoms", "env_id"],
+        ascending=[True, True, True],
     ).reset_index(drop=True)
 
 
 def build_cost_curve(df):
     """(mols_picked, envs_covered) cumulative set-cover curve."""
     env_elem, env_natoms, env_nmols = cov.env_frequency(
-        df["atom_envs"].tolist(), df["heavy_elements"].tolist(),
+        df["atom_envs"].tolist(),
+        df["heavy_elements"].tolist(),
     )
     xs, ys = cov.greedy_set_cover_curve(
-        df["atom_envs"].tolist(), env_nmols, env_natoms,
+        df["atom_envs"].tolist(),
+        env_nmols,
+        env_natoms,
     )
     return pd.DataFrame({"mols_picked": xs, "envs_covered": ys})
 
@@ -65,7 +74,8 @@ def build_cost_curve(df):
 def build_forced_choice(df, max_carriers):
     """Rarest envs classified forced (1 carrier) vs choice (2..max_carriers)."""
     env_elem, env_natoms, env_nmols = cov.env_frequency(
-        df["atom_envs"].tolist(), df["heavy_elements"].tolist(),
+        df["atom_envs"].tolist(),
+        df["heavy_elements"].tolist(),
     )
     env2mols = cov.env_to_mols(df["atom_envs"].tolist())
     cids = df["CompoundID"].tolist()
@@ -75,13 +85,15 @@ def build_forced_choice(df, max_carriers):
         if n > max_carriers:
             break
         carriers = env2mols[eid]
-        rows.append({
-            "env_id": eid,
-            "element": env_elem[eid],
-            "n_mols": n,
-            "pick_type": "forced" if n == 1 else "choice",
-            "carrier_ids": ";".join(cids[i] for i in carriers),
-        })
+        rows.append(
+            {
+                "env_id": eid,
+                "element": env_elem[eid],
+                "n_mols": n,
+                "pick_type": "forced" if n == 1 else "choice",
+                "carrier_ids": ";".join(cids[i] for i in carriers),
+            }
+        )
     return pd.DataFrame(rows, columns=schema.FORCED_CHOICE_COLUMNS)
 
 
@@ -101,6 +113,7 @@ def plot_cost_curve(cost, out_dir):
     """Knee plot — optional; skipped if matplotlib unavailable."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
@@ -130,13 +143,16 @@ def print_summary(df, hist, forced_choice, bond_types):
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("-i", "--input", required=True,
-                   help="Path to descriptors.parquet.")
-    p.add_argument("-o", "--output", required=True,
-                   help="Output directory (analysis/ CSVs written here).")
-    p.add_argument("--max-carriers", type=int, default=10,
-                   help="Forced/choice table: only envs with ≤ this many "
-                        "carrier molecules (default 10).")
+    p.add_argument("-i", "--input", required=True, help="Path to descriptors.parquet.")
+    p.add_argument(
+        "-o", "--output", required=True, help="Output directory (analysis/ CSVs written here)."
+    )
+    p.add_argument(
+        "--max-carriers",
+        type=int,
+        default=10,
+        help="Forced/choice table: only envs with ≤ this many carrier molecules (default 10).",
+    )
     return p.parse_args(argv)
 
 
@@ -158,8 +174,9 @@ def main(argv=None):
     plot_cost_curve(cost, out_dir)
 
     print_summary(df, hist, fc, bonds)
-    print(f"\nWrote env_frequency.csv, cost_curve.csv, forced_choice.csv, "
-          f"bond_types.csv → {out_dir}")
+    print(
+        f"\nWrote env_frequency.csv, cost_curve.csv, forced_choice.csv, bond_types.csv → {out_dir}"
+    )
     return 0
 
 

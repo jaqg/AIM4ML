@@ -11,8 +11,8 @@ from collections import OrderedDict
 
 from rdkit import Chem
 
-
 # -- Reading --------------------------------------------------------------
+
 
 def read_sdf(path):
     """
@@ -44,9 +44,18 @@ def read_sdf(path):
 # -- Reject writer (shared by all stages) --------------------------------
 
 _REJECT_TAG_ORDER = [
-    "SourceID", "SMILES", "Energy_Ha", "FormalCharge", "Multiplicity",
-    "HOMO_Ha", "LUMO_Ha", "HL_Gap_Ha", "PartialCharges",
-    "num_atoms", "num_bonds", "energy_status",
+    "SourceID",
+    "SMILES",
+    "Energy_Ha",
+    "FormalCharge",
+    "Multiplicity",
+    "HOMO_Ha",
+    "LUMO_Ha",
+    "HL_Gap_Ha",
+    "PartialCharges",
+    "num_atoms",
+    "num_bonds",
+    "energy_status",
 ]
 
 
@@ -77,8 +86,7 @@ def write_reject_sdf(path, rejected_rows, reject_reason=""):
     tmp = path + ".tmp." + str(os.getpid())
     with Chem.SDWriter(tmp) as writer:
         for row in rejected_rows:
-            mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False,
-                                       removeHs=False)
+            mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False, removeHs=False)
             if mol is None:
                 continue
             # Re-attach metadata as SDF tags, skipping mol_block and None values
@@ -102,8 +110,8 @@ def write_reject_sdf(path, rejected_rows, reject_reason=""):
 
 # -- Validation -----------------------------------------------------------
 
-def validate_tags(mols_and_tags, required, recommended, optional,
-                  strict=True):
+
+def validate_tags(mols_and_tags, required, recommended, optional, strict=True):
     """
     Validate property tags against the pipeline contract.
 
@@ -131,7 +139,7 @@ def validate_tags(mols_and_tags, required, recommended, optional,
         Warnings keyed by entry position (includes molecules that may also
         appear in passed or rejected).
     """
-    passed   = OrderedDict()
+    passed = OrderedDict()
     rejected = OrderedDict()
     warnings = OrderedDict()
 
@@ -150,8 +158,8 @@ def validate_tags(mols_and_tags, required, recommended, optional,
             rejected[idx] = (mol, tags, ["RDKit: could not parse molecule"])
             continue
 
-        errors   = []
-        warns    = []
+        errors = []
+        warns = []
 
         for tag_name, (pytype, status) in all_tags.items():
             if tag_name not in tags:
@@ -168,13 +176,9 @@ def validate_tags(mols_and_tags, required, recommended, optional,
                 try:
                     mult = int(value)
                     if mult <= 0:
-                        errors.append(
-                            f"Multiplicity: {value} is not a positive integer"
-                        )
+                        errors.append(f"Multiplicity: {value} is not a positive integer")
                 except (ValueError, TypeError):
-                    errors.append(
-                        f"Multiplicity: '{value}' is not parseable as integer"
-                    )
+                    errors.append(f"Multiplicity: '{value}' is not parseable as integer")
                 continue
 
             # FormalCharge: must be integer
@@ -182,9 +186,7 @@ def validate_tags(mols_and_tags, required, recommended, optional,
                 try:
                     int(value)
                 except (ValueError, TypeError):
-                    errors.append(
-                        f"{tag_name}: '{value}' is not parseable as integer"
-                    )
+                    errors.append(f"{tag_name}: '{value}' is not parseable as integer")
                 continue
 
             # Float types
@@ -192,9 +194,7 @@ def validate_tags(mols_and_tags, required, recommended, optional,
                 try:
                     float(value)
                 except (ValueError, TypeError):
-                    errors.append(
-                        f"{tag_name}: '{value}' is not parseable as float"
-                    )
+                    errors.append(f"{tag_name}: '{value}' is not parseable as float")
                 continue
 
         # Unknown tags — pass through silently (no error, no warning)

@@ -11,10 +11,10 @@ Verifies:
 """
 
 import os
-import sys
-import subprocess
-import tempfile
 import re
+import subprocess
+import sys
+import tempfile
 
 import pytest
 from rdkit import Chem
@@ -22,7 +22,8 @@ from rdkit.Chem import AllChem
 
 _SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "06_stereo_filter.py",
+    "..",
+    "06_stereo_filter.py",
 )
 if os.path.dirname(_SCRIPT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_SCRIPT))
@@ -30,10 +31,10 @@ if os.path.dirname(_SCRIPT) not in sys.path:
 from lib.parquet_io import read_batch, write_batch
 from lib.schema import compound_id
 
-
 # -----------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------
+
 
 def _make_mol_block(smiles, source_id, energy=-500.0):
     """Create a minimal valid SDF mol_block from a SMILES string.
@@ -71,21 +72,20 @@ def _make_row(smiles, source_id, energy=-500.0):
     mol_block = _make_mol_block(smiles, source_id, energy)
     mol = Chem.MolFromMolBlock(mol_block, sanitize=False, removeHs=False)
     return {
-        "mol_block":        mol_block,
-        "num_atoms":        mol.GetNumAtoms(),
-        "num_bonds":        mol.GetNumBonds(),
-        "Energy_Ha":        energy,
-        "FormalCharge":     0,
-        "Multiplicity":     1,
-        "SMILES":           smiles,
-        "SourceID":         source_id,
-        "CompoundID":       cid,
-        "CanonicalSMILES":  can_smi,
+        "mol_block": mol_block,
+        "num_atoms": mol.GetNumAtoms(),
+        "num_bonds": mol.GetNumBonds(),
+        "Energy_Ha": energy,
+        "FormalCharge": 0,
+        "Multiplicity": 1,
+        "SMILES": smiles,
+        "SourceID": source_id,
+        "CompoundID": cid,
+        "CanonicalSMILES": can_smi,
     }
 
 
-def _make_atrop_row(smiles, source_id, atrop_bond_idx, atrop_cw=True,
-                    energy=-500.0):
+def _make_atrop_row(smiles, source_id, atrop_bond_idx, atrop_cw=True, energy=-500.0):
     """Build a row whose mol_block carries atropisomer bond stereo.
 
     Uses AddHs + Compute2DCoords so tet chirality round-trips; atrop bond
@@ -94,8 +94,7 @@ def _make_atrop_row(smiles, source_id, atrop_bond_idx, atrop_cw=True,
     mol = Chem.MolFromSmiles(smiles)
     mol = Chem.AddHs(mol)
     AllChem.Compute2DCoords(mol)
-    stereo = (Chem.BondStereo.STEREOATROPCW if atrop_cw
-              else Chem.BondStereo.STEREOATROPCCW)
+    stereo = Chem.BondStereo.STEREOATROPCW if atrop_cw else Chem.BondStereo.STEREOATROPCCW
     mol.GetBondWithIdx(atrop_bond_idx).SetStereo(stereo)
     mol.SetProp("_Name", source_id)
     mol.SetProp("Energy_Ha", str(energy))
@@ -108,17 +107,17 @@ def _make_atrop_row(smiles, source_id, atrop_bond_idx, atrop_cw=True,
     cid = compound_id(can_smi)
     mol2 = Chem.MolFromMolBlock(block, sanitize=False, removeHs=False)
     return {
-        "mol_block":        block,
-        "num_atoms":        mol2.GetNumAtoms(),
-        "num_bonds":        mol2.GetNumBonds(),
-        "Energy_Ha":        energy,
-        "FormalCharge":     0,
-        "Multiplicity":     1,
-        "SMILES":           smiles,
-        "SourceID":         source_id,
-        "CompoundID":       cid,
-        "CanonicalSMILES":  can_smi,
-        "AtropisomerKey":   f"{atrop_bond_idx}:{5 if atrop_cw else 6}",
+        "mol_block": block,
+        "num_atoms": mol2.GetNumAtoms(),
+        "num_bonds": mol2.GetNumBonds(),
+        "Energy_Ha": energy,
+        "FormalCharge": 0,
+        "Multiplicity": 1,
+        "SMILES": smiles,
+        "SourceID": source_id,
+        "CompoundID": cid,
+        "CanonicalSMILES": can_smi,
+        "AtropisomerKey": f"{atrop_bond_idx}:{5 if atrop_cw else 6}",
     }
 
 
@@ -126,11 +125,16 @@ def _make_batch(path, rows):
     write_batch(path, rows)
 
 
-def _run_filter(input_dir, output_dir, remove_enantiomers=False,
-                robust_stereo=False, rejects_dir=None):
+def _run_filter(
+    input_dir, output_dir, remove_enantiomers=False, robust_stereo=False, rejects_dir=None
+):
     cmd = [
-        sys.executable, _SCRIPT,
-        "-i", input_dir, "-o", output_dir,
+        sys.executable,
+        _SCRIPT,
+        "-i",
+        input_dir,
+        "-o",
+        output_dir,
     ]
     if remove_enantiomers:
         cmd.append("--remove-enantiomers")
@@ -155,12 +159,13 @@ def _report_count(stdout, label):
 # Fixtures
 # -----------------------------------------------------------------------
 
+
 @pytest.fixture
 def alanine_enantiomers():
     """L-alanine and D-alanine — single tetrahedral stereocenter."""
     return {
-        "l_ala":  _make_row("C[C@H](N)C(=O)O", "ALA_L", energy=-500.0),
-        "d_ala":  _make_row("C[C@@H](N)C(=O)O", "ALA_D", energy=-499.9),
+        "l_ala": _make_row("C[C@H](N)C(=O)O", "ALA_L", energy=-500.0),
+        "d_ala": _make_row("C[C@@H](N)C(=O)O", "ALA_D", energy=-499.9),
     }
 
 
@@ -213,7 +218,7 @@ def no_stereo_molecules():
 @pytest.fixture
 def spiro_enantiomers():
     """Chiral spiro carbon enantiomers (RDKit bug #9391 territory).
-    
+
     Atom 1 (spiro carbon) sits in two SSSR rings with a chiral tag,
     triggering the robust-path auto-fallback.
     """
@@ -227,10 +232,8 @@ def spiro_enantiomers():
 def atrop_enantiomers():
     """Biaryl atropisomer enantiomers (axial chirality CW vs CCW)."""
     return {
-        "cw": _make_atrop_row("Clc1ccccc1-c1ccccc1C", "ATROP_CW", 6, True,
-                              -500.0),
-        "ccw": _make_atrop_row("Clc1ccccc1-c1ccccc1C", "ATROP_CCW", 6, False,
-                               -499.9),
+        "cw": _make_atrop_row("Clc1ccccc1-c1ccccc1C", "ATROP_CW", 6, True, -500.0),
+        "ccw": _make_atrop_row("Clc1ccccc1-c1ccccc1C", "ATROP_CCW", 6, False, -499.9),
     }
 
 
@@ -239,10 +242,8 @@ def atrop_diastereomers():
     """Tet + atrop: (R,CW) vs (R,CCW) — same tet, opposite atrop.
     Diastereomers (mirror of (R,CW) is (S,CCW))."""
     return {
-        "r_cw": _make_atrop_row("C[C@H](O)c1ccccc1-c1ccccc1Cl", "DIA_R_CW",
-                                8, True, -500.0),
-        "r_ccw": _make_atrop_row("C[C@H](O)c1ccccc1-c1ccccc1Cl", "DIA_R_CCW",
-                                 8, False, -499.9),
+        "r_cw": _make_atrop_row("C[C@H](O)c1ccccc1-c1ccccc1Cl", "DIA_R_CW", 8, True, -500.0),
+        "r_ccw": _make_atrop_row("C[C@H](O)c1ccccc1-c1ccccc1Cl", "DIA_R_CCW", 8, False, -499.9),
     }
 
 
@@ -250,8 +251,8 @@ def atrop_diastereomers():
 # Tests
 # -----------------------------------------------------------------------
 
-class TestStereoFilter:
 
+class TestStereoFilter:
     def test_remove_enantiomers_flag(self, alanine_enantiomers):
         """--remove-enantiomers: first enantiomer kept, second removed. Reject SDF written."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -262,10 +263,12 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]]
+                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]],
             )
 
-            rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True, rejects_dir=rejects_dir)
+            rc, stdout, stderr = _run_filter(
+                in_dir, out_dir, remove_enantiomers=True, rejects_dir=rejects_dir
+            )
             assert rc == 0
             assert _report_count(stdout, "Removed enantiomers:") == 1
 
@@ -288,12 +291,10 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]]
+                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]],
             )
 
-            rc, stdout, stderr = _run_filter(
-                in_dir, out_dir, rejects_dir=rejects_dir
-            )
+            rc, stdout, stderr = _run_filter(in_dir, out_dir, rejects_dir=rejects_dir)
             assert rc == 0
             assert _report_count(stdout, "Enantiomer pairs detected:") == 1
             assert _report_count(stdout, "Removed enantiomers:") == 0
@@ -313,14 +314,15 @@ class TestStereoFilter:
             in_dir = os.path.join(tmp, "in")
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
-            _make_batch(
-                os.path.join(in_dir, "batch_000.parquet"),
-                [alanine_enantiomers["l_ala"]]
-            )
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [alanine_enantiomers["l_ala"]])
 
             cmd = [
-                sys.executable, _SCRIPT,
-                "-i", in_dir, "-o", out_dir,
+                sys.executable,
+                _SCRIPT,
+                "-i",
+                in_dir,
+                "-o",
+                out_dir,
                 "--force-keep-rejected",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -336,7 +338,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [enantiomer_with_double_bond["er"], enantiomer_with_double_bond["es"]]
+                [enantiomer_with_double_bond["er"], enantiomer_with_double_bond["es"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True)
@@ -356,7 +358,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [diastereomer_pair["er"], diastereomer_pair["zr"]]
+                [diastereomer_pair["er"], diastereomer_pair["zr"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
@@ -378,7 +380,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [diastereomer_both_flipped["er"], diastereomer_both_flipped["zs"]]
+                [diastereomer_both_flipped["er"], diastereomer_both_flipped["zs"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
@@ -399,7 +401,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [atrop_enantiomers["cw"], atrop_enantiomers["ccw"]]
+                [atrop_enantiomers["cw"], atrop_enantiomers["ccw"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True)
@@ -419,7 +421,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [atrop_diastereomers["r_cw"], atrop_diastereomers["r_ccw"]]
+                [atrop_diastereomers["r_cw"], atrop_diastereomers["r_ccw"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
@@ -438,8 +440,7 @@ class TestStereoFilter:
         for smi in ["C[C@H](N)C(=O)O", "C/C=C/[C@H](C)O"]:
             block = _make_mol_block(smi, "RT")
             rt = Chem.MolFromMolBlock(block)  # sanitize=True, removeHs=True
-            assert Chem.MolToSmiles(rt, isomericSmiles=True) == \
-                   _canonical_isomeric(smi)
+            assert Chem.MolToSmiles(rt, isomericSmiles=True) == _canonical_isomeric(smi)
         # atropisomer bond stereo
         mol = Chem.MolFromSmiles("Clc1ccccc1-c1ccccc1C")
         mol = Chem.AddHs(mol)
@@ -447,8 +448,7 @@ class TestStereoFilter:
         mol.GetBondWithIdx(6).SetStereo(Chem.BondStereo.STEREOATROPCW)
         block = Chem.MolToMolBlock(mol)
         rt = Chem.MolFromMolBlock(block)
-        assert rt.GetBondWithIdx(6).GetStereo() == \
-               Chem.BondStereo.STEREOATROPCW
+        assert rt.GetBondWithIdx(6).GetStereo() == Chem.BondStereo.STEREOATROPCW
 
     def test_complex_skipped(self, complex_molecule):
         """Multi-fragment molecules get stereo_status=complex, not processed."""
@@ -457,10 +457,7 @@ class TestStereoFilter:
             out_dir = os.path.join(tmp, "out")
             os.makedirs(in_dir)
 
-            _make_batch(
-                os.path.join(in_dir, "batch_000.parquet"),
-                [complex_molecule["complex"]]
-            )
+            _make_batch(os.path.join(in_dir, "batch_000.parquet"), [complex_molecule["complex"]])
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
             assert rc == 0
@@ -479,7 +476,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [no_stereo_molecules["ethanol"], no_stereo_molecules["propane"]]
+                [no_stereo_molecules["ethanol"], no_stereo_molecules["propane"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
@@ -501,7 +498,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]]
+                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir)
@@ -518,10 +515,12 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]]
+                [alanine_enantiomers["l_ala"], alanine_enantiomers["d_ala"]],
             )
 
-            rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True, robust_stereo=True)
+            rc, stdout, stderr = _run_filter(
+                in_dir, out_dir, remove_enantiomers=True, robust_stereo=True
+            )
             assert rc == 0
             assert _report_count(stdout, "Removed enantiomers:") == 1
 
@@ -538,7 +537,7 @@ class TestStereoFilter:
 
             _make_batch(
                 os.path.join(in_dir, "batch_000.parquet"),
-                [spiro_enantiomers["r"], spiro_enantiomers["s"]]
+                [spiro_enantiomers["r"], spiro_enantiomers["s"]],
             )
 
             rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True)
@@ -647,9 +646,7 @@ class TestStereoFilter:
             ]
             _make_batch(os.path.join(in_dir, "batch_000.parquet"), rows)
 
-            rc, stdout, stderr = _run_filter(
-                in_dir, out_dir, remove_enantiomers=True
-            )
+            rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True)
             assert rc == 0
             assert _report_count(stdout, "Enantiomer pairs detected:") == 1
             assert _report_count(stdout, "Removed enantiomers:") == 1
@@ -683,9 +680,7 @@ class TestStereoFilter:
             ]
             _make_batch(os.path.join(in_dir, "batch_000.parquet"), rows)
 
-            rc, stdout, stderr = _run_filter(
-                in_dir, out_dir, remove_enantiomers=True
-            )
+            rc, stdout, stderr = _run_filter(in_dir, out_dir, remove_enantiomers=True)
             assert rc == 0
             assert _report_count(stdout, "Enantiomer pairs detected:") == 1
             assert _report_count(stdout, "Removed enantiomers:") == 2
@@ -710,9 +705,7 @@ class TestStereoFilter:
             ]
             _make_batch(os.path.join(in_dir, "batch_000.parquet"), rows)
 
-            rc, stdout, stderr = _run_filter(
-                in_dir, out_dir
-            )
+            rc, stdout, stderr = _run_filter(in_dir, out_dir)
             assert rc == 0
             assert _report_count(stdout, "Enantiomer pairs detected:") == 2
             assert _report_count(stdout, "Removed enantiomers:") == 0

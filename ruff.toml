@@ -1,0 +1,22 @@
+# AIM4ML — ruff configuration
+# Scope: correctness + import hygiene. No stylistic rule families (the
+# pipeline is frozen for science work — D67/strategic direction).
+line-length = 100
+
+[lint]
+select = [
+    "E4",  # imports, indentation
+    "E7",  # statement issues
+    "E9",  # runtime syntax errors
+    "F",   # pyflakes (unused imports/vars, undefined names)
+    "I",   # import sorting
+]
+ignore = [
+    # Stage scripts bootstrap sys.path before `from lib import ...` so they
+    # run directly under `python stage.py` (cluster) without install.
+    "E402",
+]
+
+[lint.per-file-ignores]
+# Package re-exports are intentional (lib imports convenience surface)
+"__init__.py" = ["F401"]

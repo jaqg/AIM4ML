@@ -1,14 +1,14 @@
 """test_00_validate.py — Integration tests for 00_validate.py."""
 
 import os
-import sys
 import subprocess
+import sys
 import tempfile
-import pytest
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "00_validate.py",
+    "..",
+    "00_validate.py",
 )
 
 
@@ -28,8 +28,7 @@ class TestValidateCli:
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "clean.sdf")
             rejects = os.path.join(tmp, "rejects")
-            rc, stdout = run_validator(valid_sdf,
-                                       **{"-o": out, "--rejects-dir": rejects})
+            rc, stdout = run_validator(valid_sdf, **{"-o": out, "--rejects-dir": rejects})
             assert rc == 0
             assert "Validation PASSED" in stdout
             assert os.path.isfile(out)
@@ -38,8 +37,9 @@ class TestValidateCli:
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "clean.sdf")
             rejects = os.path.join(tmp, "rejects")
-            rc, stdout = run_validator(broken_missing_required,
-                                       **{"-o": out, "--rejects-dir": rejects})
+            rc, stdout = run_validator(
+                broken_missing_required, **{"-o": out, "--rejects-dir": rejects}
+            )
             assert rc == 1
             assert "Validation FAILED" in stdout
             assert "Energy_Ha: missing" in stdout
@@ -49,8 +49,7 @@ class TestValidateCli:
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "clean.sdf")
             rejects = os.path.join(tmp, "rejects")
-            rc, _ = run_validator(broken_bad_types,
-                                  **{"-o": out, "--rejects-dir": rejects})
+            rc, _ = run_validator(broken_bad_types, **{"-o": out, "--rejects-dir": rejects})
             assert rc == 1
             reject_path = os.path.join(rejects, "rejected.sdf")
             assert os.path.isfile(reject_path)
@@ -60,8 +59,7 @@ class TestValidateCli:
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "clean.sdf")
             rejects = os.path.join(tmp, "rejects")
-            rc, _ = run_validator(broken_missing_required,
-                                  **{"-o": out, "--rejects-dir": rejects})
+            rc, _ = run_validator(broken_missing_required, **{"-o": out, "--rejects-dir": rejects})
             # No mols pass → clean SDF may still be created (SDWriter with 0 mols).
             # It's not a directory-level error either way; just check no crash.
             assert rc == 1
@@ -70,8 +68,7 @@ class TestValidateCli:
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "clean.sdf")
             rejects = os.path.join(tmp, "rejects")
-            rc, stdout = run_validator(missing_recommended,
-                                       **{"-o": out, "--rejects-dir": rejects})
+            rc, stdout = run_validator(missing_recommended, **{"-o": out, "--rejects-dir": rejects})
             assert rc == 0
             assert "SMILES: missing (recommended)" in stdout
             assert "SourceID: missing (recommended)" in stdout
@@ -80,8 +77,8 @@ class TestValidateCli:
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "clean.sdf")
             rejects = os.path.join(tmp, "rejects")
-            rc, stdout = run_validator(broken_missing_required,
-                                       **{"-o": out, "--rejects-dir": rejects,
-                                          "--lenient": None})
+            rc, stdout = run_validator(
+                broken_missing_required, **{"-o": out, "--rejects-dir": rejects, "--lenient": None}
+            )
             assert rc == 0
             assert "Validation PASSED" in stdout

@@ -23,7 +23,7 @@ def curated_row(smi, energy=-500.0):
         "Energy_Ha": energy,
         "FormalCharge": 0,
         "Multiplicity": 1,
-        "SMILES": Chem.MolToSmiles(mol),      # implicit-H original
+        "SMILES": Chem.MolToSmiles(mol),  # implicit-H original
         "SourceID": "TEST",
         "HOMO_Ha": None,
         "LUMO_Ha": None,

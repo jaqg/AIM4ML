@@ -16,35 +16,40 @@ Usage:
     python3 filter_qm40.py --full-data   # full dataset on cluster
 """
 
+import argparse
 import os
 import sys
-import argparse
-import pandas as pd
-from tqdm import tqdm
-from rdkit import Chem, RDLogger
 
-RDLogger.DisableLog('rdApp.*')
+import pandas as pd
+from rdkit import Chem, RDLogger
+from tqdm import tqdm
+
+RDLogger.DisableLog("rdApp.*")
 
 PATHS = {
     "sample": {
-        "main_csv":      "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples/sample_main.csv",
-        "filtered_csv":  "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples/filtered_sample_main.csv",
-        "log_dir":       "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples/logs",
+        "main_csv": "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples/sample_main.csv",
+        "filtered_csv": "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples/filtered_sample_main.csv",
+        "log_dir": "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples/logs",
     },
     "full": {
-        "main_csv":      "/datos_pool/mldata1/QMdatasets/QM40/main.csv",
-        "filtered_csv":  "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/filtered_main.csv",
-        "log_dir":       "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/logs",
+        "main_csv": "/datos_pool/mldata1/QMdatasets/QM40/main.csv",
+        "filtered_csv": "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/filtered_main.csv",
+        "log_dir": "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/logs",
     },
 }
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Phase 1 curation filter for QM40.")
-    parser.add_argument("--full-data", action="store_true",
-                        help="Run on the full QM40 dataset on the cluster (default: local sample).")
-    parser.add_argument("--sample", action="store_true",
-                            help="Run on sample dataset (cluster absolute paths).")
+    parser.add_argument(
+        "--full-data",
+        action="store_true",
+        help="Run on the full QM40 dataset on the cluster (default: local sample).",
+    )
+    parser.add_argument(
+        "--sample", action="store_true", help="Run on sample dataset (cluster absolute paths)."
+    )
     return parser.parse_args()
 
 
@@ -82,9 +87,9 @@ def main():
     mode = "full" if args.full_data else "sample"
     paths = PATHS[mode]
 
-    MAIN_CSV     = paths["main_csv"]
+    MAIN_CSV = paths["main_csv"]
     FILTERED_CSV = paths["filtered_csv"]
-    LOG_DIR      = paths["log_dir"]
+    LOG_DIR = paths["log_dir"]
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -94,26 +99,28 @@ def main():
     n_total = len(main_df)
     print(f"  {n_total} molecules")
 
-    passed   = []
+    passed = []
     rejected = []
 
-    print(f"\nApplying filter (neutral + non-zwitterion + closed-shell) ...")
-    for _, row in tqdm(main_df.iterrows(), total=n_total, desc="Filtering", unit="mol", file=sys.stdout):
+    print("\nApplying filter (neutral + non-zwitterion + closed-shell) ...")
+    for _, row in tqdm(
+        main_df.iterrows(), total=n_total, desc="Filtering", unit="mol", file=sys.stdout
+    ):
         ok, reason = check_molecule(row["smile"])
         if ok:
             passed.append(row)
         else:
             rejected.append({"Zinc_id": row["Zinc_id"], "smile": row["smile"], "reason": reason})
 
-    passed_df   = pd.DataFrame(passed, columns=main_df.columns)
+    passed_df = pd.DataFrame(passed, columns=main_df.columns)
     rejected_df = pd.DataFrame(rejected, columns=["Zinc_id", "smile", "reason"])
 
     passed_df.to_csv(FILTERED_CSV, index=False)
 
-    n_pass   = len(passed_df)
+    n_pass = len(passed_df)
     n_reject = len(rejected_df)
 
-    print(f"\nDone.")
+    print("\nDone.")
     print(f"  Passed:   {n_pass} ({100 * n_pass / n_total:.2f}%)")
     print(f"  Rejected: {n_reject} ({100 * n_reject / n_total:.2f}%)")
     print(f"  Filtered → {FILTERED_CSV}")
@@ -125,7 +132,7 @@ def main():
         for reason, count in rejected_df["reason"].value_counts().items():
             print(f"    {reason}: {count}")
     else:
-        print(f"  All molecules passed — no rejected log written.")
+        print("  All molecules passed — no rejected log written.")
 
 
 if __name__ == "__main__":

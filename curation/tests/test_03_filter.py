@@ -1,23 +1,24 @@
 """test_03_filter.py — Integration tests for 03_filter.py."""
 
-import os
-import sys
-import subprocess
-import tempfile
-import math
 import importlib
-import pytest
+import math
+import os
+import subprocess
+import sys
+import tempfile
 
 from rdkit import Chem
-from rdkit.Chem import SDWriter, AllChem
+from rdkit.Chem import AllChem, SDWriter
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "03_filter.py",
+    "..",
+    "03_filter.py",
 )
 SPLIT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "01_split.py",
+    "..",
+    "01_split.py",
 )
 
 _SCRIPTS_DIR = os.path.dirname(SCRIPT)
@@ -44,18 +45,24 @@ class TestFilter:
             batches_dir = os.path.join(tmp, "batches")
             out_dir = os.path.join(tmp, "filtered_out")
 
-            subprocess.run([
-                sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
-                valid_sdf, "-o", batches_dir, "--batch-size", "10",
-            ], capture_output=True)
+            subprocess.run(
+                [
+                    sys.executable,
+                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    valid_sdf,
+                    "-o",
+                    batches_dir,
+                    "--batch-size",
+                    "10",
+                ],
+                capture_output=True,
+            )
             # Default mode may drop all rows on small fixtures; use force-keep
-            run_filter(batches_dir, out_dir,
-                       extra_args=["--force-keep-rejected"])
+            run_filter(batches_dir, out_dir, extra_args=["--force-keep-rejected"])
 
             from lib.parquet_io import read_batch
-            files = sorted(f for f in os.listdir(out_dir)
-                           if f.endswith(".parquet"))
+
+            files = sorted(f for f in os.listdir(out_dir) if f.endswith(".parquet"))
             if not files:
                 return  # all rows dropped, acceptable
             batch = read_batch(os.path.join(out_dir, files[0]))
@@ -69,15 +76,22 @@ class TestFilter:
             batches_dir = os.path.join(tmp, "batches")
             out_dir = os.path.join(tmp, "filtered_out")
 
-            subprocess.run([
-                sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
-                valid_sdf, "-o", batches_dir, "--batch-size", "10",
-            ], capture_output=True)
-            run_filter(batches_dir, out_dir,
-                       extra_args=["--force-keep-rejected"])
+            subprocess.run(
+                [
+                    sys.executable,
+                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    valid_sdf,
+                    "-o",
+                    batches_dir,
+                    "--batch-size",
+                    "10",
+                ],
+                capture_output=True,
+            )
+            run_filter(batches_dir, out_dir, extra_args=["--force-keep-rejected"])
 
             from lib.parquet_io import read_batch
+
             total_in = sum(
                 len(read_batch(os.path.join(batches_dir, f)))
                 for f in sorted(os.listdir(batches_dir))
@@ -96,18 +110,24 @@ class TestFilter:
             batches_dir = os.path.join(tmp, "batches")
             out_dir = os.path.join(tmp, "filtered_out")
 
-            subprocess.run([
-                sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
-                valid_sdf, "-o", batches_dir, "--batch-size", "10",
-            ], capture_output=True)
-            run_filter(batches_dir, out_dir,
-                       extra_args=["--force-keep-rejected"])
+            subprocess.run(
+                [
+                    sys.executable,
+                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    valid_sdf,
+                    "-o",
+                    batches_dir,
+                    "--batch-size",
+                    "10",
+                ],
+                capture_output=True,
+            )
+            run_filter(batches_dir, out_dir, extra_args=["--force-keep-rejected"])
 
             from lib.parquet_io import read_batch
             from rdkit import Chem
-            files = sorted(f for f in os.listdir(out_dir)
-                           if f.endswith(".parquet"))
+
+            files = sorted(f for f in os.listdir(out_dir) if f.endswith(".parquet"))
             if not files:
                 return
             batch = read_batch(os.path.join(out_dir, files[0]))
@@ -125,19 +145,28 @@ class TestFilter:
             out_dir = os.path.join(tmp, "filtered_out")
             rejects_dir = os.path.join(tmp, "rejects")
 
-            subprocess.run([
-                sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
-                valid_sdf, "-o", batches_dir, "--batch-size", "10",
-            ], capture_output=True)
+            subprocess.run(
+                [
+                    sys.executable,
+                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    valid_sdf,
+                    "-o",
+                    batches_dir,
+                    "--batch-size",
+                    "10",
+                ],
+                capture_output=True,
+            )
             rc, stdout = run_filter(
-                batches_dir, out_dir,
+                batches_dir,
+                out_dir,
                 rejects_dir=os.path.join(rejects_dir, "03_filter"),
             )
             assert rc == 0
 
 
 # -- Multi-fragment test helpers ------------------------------------------
+
 
 def _write_sdf(path, entries):
     """entries: list of (smiles, tags_dict)."""
@@ -153,8 +182,7 @@ def _write_sdf(path, entries):
 
 
 def _tags(sid, energy="-500.0"):
-    return {"Energy_Ha": energy, "FormalCharge": "0",
-            "Multiplicity": "1", "SourceID": sid}
+    return {"Energy_Ha": energy, "FormalCharge": "0", "Multiplicity": "1", "SourceID": sid}
 
 
 def _run_split_filter(tmp, entries, extra_args, rejects_dir=None):
@@ -165,12 +193,13 @@ def _run_split_filter(tmp, entries, extra_args, rejects_dir=None):
     out = os.path.join(tmp, "out")
     rc_split = subprocess.run(
         [sys.executable, SPLIT, sdf, "-o", batches, "--batch-size", "10"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     ).returncode
     assert rc_split == 0
-    rc, _ = run_filter(batches, out, rejects_dir=rejects_dir,
-                       extra_args=extra_args)
+    rc, _ = run_filter(batches, out, rejects_dir=rejects_dir, extra_args=extra_args)
     from lib.parquet_io import read_batch
+
     rows = []
     files = sorted(f for f in os.listdir(out) if f.endswith(".parquet"))
     for f in files:
@@ -183,7 +212,9 @@ class TestMultiFragment:
         """Single molecule, no fragment flags → n_fragments=1, ok."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("c1ccccc1", _tags("M1"))], [],
+                tmp,
+                [("c1ccccc1", _tags("M1"))],
+                [],
             )
             assert rc == 0
             assert len(rows) == 1
@@ -195,8 +226,10 @@ class TestMultiFragment:
         with tempfile.TemporaryDirectory() as tmp:
             rejects = os.path.join(tmp, "rejects", "03_filter")
             rc, rows = _run_split_filter(
-                tmp, [("[Na+].[Cl-]", _tags("SALT"))],
-                ["--max-fragments", "1"], rejects_dir=rejects,
+                tmp,
+                [("[Na+].[Cl-]", _tags("SALT"))],
+                ["--max-fragments", "1"],
+                rejects_dir=rejects,
             )
             assert rc == 0
             assert rows == []  # dropped
@@ -210,7 +243,8 @@ class TestMultiFragment:
         """Aspirin + water + --max-fragments 1 → reason lists both formulas."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("CC(=O)Oc1ccccc1C(=O)O.O", _tags("SOLV"))],
+                tmp,
+                [("CC(=O)Oc1ccccc1C(=O)O.O", _tags("SOLV"))],
                 ["--force-keep-rejected", "--max-fragments", "1"],
             )
             assert rc == 0
@@ -224,7 +258,8 @@ class TestMultiFragment:
         """Single molecule + --min-fragments 2 → rejected fragments=1<2."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("CCO", _tags("M1"))],
+                tmp,
+                [("CCO", _tags("M1"))],
                 ["--force-keep-rejected", "--min-fragments", "2"],
             )
             assert rc == 0
@@ -237,7 +272,8 @@ class TestMultiFragment:
         """Benzene+naphthalene + --min/max-fragments 2 → exactly 2 passes."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("c1ccccc1.c1ccc2ccccc2c1", _tags("DIM"))],
+                tmp,
+                [("c1ccccc1.c1ccc2ccccc2c1", _tags("DIM"))],
                 ["--min-fragments", "2", "--max-fragments", "2"],
             )
             assert rc == 0
@@ -249,7 +285,9 @@ class TestMultiFragment:
         """Dimer, no flags → passes, n_fragments=2 stored."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("c1ccccc1.c1ccc2ccccc2c1", _tags("DIM"))], [],
+                tmp,
+                [("c1ccccc1.c1ccc2ccccc2c1", _tags("DIM"))],
+                [],
             )
             assert rc == 0
             assert len(rows) == 1
@@ -260,7 +298,8 @@ class TestMultiFragment:
         """--force-keep-rejected + --max-fragments 1 + salt → kept, rejected."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("[Na+].[Cl-]", _tags("SALT"))],
+                tmp,
+                [("[Na+].[Cl-]", _tags("SALT"))],
                 ["--force-keep-rejected", "--max-fragments", "1"],
             )
             assert rc == 0
@@ -272,7 +311,8 @@ class TestMultiFragment:
         """Forbidden element → n_fragments still stored (computed first)."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, rows = _run_split_filter(
-                tmp, [("CCl", _tags("M1"))],
+                tmp,
+                [("CCl", _tags("M1"))],
                 ["--force-keep-rejected", "--allowed-elements", "C,O"],
             )
             assert rc == 0
@@ -283,19 +323,28 @@ class TestMultiFragment:
 
     def test_mol_corrupt_n_fragments_none(self):
         """Corrupt mol_block → n_fragments=None, mol_corrupt, no crash."""
-        from lib.parquet_io import write_batch, read_batch
+        from lib.parquet_io import read_batch, write_batch
+
         with tempfile.TemporaryDirectory() as tmp:
             batches = os.path.join(tmp, "batches")
             os.makedirs(batches)
-            write_batch(os.path.join(batches, "b0.parquet"), [{
-                "mol_block": "not a valid mol block",
-                "num_atoms": 0, "num_bonds": 0,
-                "Energy_Ha": -500.0, "FormalCharge": 0, "Multiplicity": 1,
-                "SMILES": None, "SourceID": "CORRUPT",
-            }])
+            write_batch(
+                os.path.join(batches, "b0.parquet"),
+                [
+                    {
+                        "mol_block": "not a valid mol block",
+                        "num_atoms": 0,
+                        "num_bonds": 0,
+                        "Energy_Ha": -500.0,
+                        "FormalCharge": 0,
+                        "Multiplicity": 1,
+                        "SMILES": None,
+                        "SourceID": "CORRUPT",
+                    }
+                ],
+            )
             out = os.path.join(tmp, "out")
-            rc, _ = run_filter(batches, out,
-                               extra_args=["--force-keep-rejected"])
+            rc, _ = run_filter(batches, out, extra_args=["--force-keep-rejected"])
             assert rc == 0
             rows = read_batch(os.path.join(out, "b0.parquet"))
             assert len(rows) == 1
@@ -313,7 +362,12 @@ class TestComposition:
         mol = Chem.AddHs(mol)
         block = Chem.MolToMolBlock(mol)
         passes, reason, n_frag = _filter_module.check_composition(
-            block, ["C", "O"], None, None, None, None,
+            block,
+            ["C", "O"],
+            None,
+            None,
+            None,
+            None,
         )
         assert passes, reason
         assert n_frag == 1
@@ -397,21 +451,24 @@ class TestZwitterionIntegration:
     def test_nitro_kept_glycine_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             sdf = os.path.join(tmp, "in.sdf")
-            _write_sdf_3d(sdf, [
-                ("C[N+](=O)[O-]", _tags("NITRO")),
-                ("[NH3+]CC(=O)[O-]", _tags("GLYZWI")),
-            ])
+            _write_sdf_3d(
+                sdf,
+                [
+                    ("C[N+](=O)[O-]", _tags("NITRO")),
+                    ("[NH3+]CC(=O)[O-]", _tags("GLYZWI")),
+                ],
+            )
             batches = os.path.join(tmp, "batches")
             out = os.path.join(tmp, "out")
             subprocess.run(
-                [sys.executable, SPLIT, sdf, "-o", batches,
-                 "--batch-size", "10"],
-                capture_output=True, text=True,
+                [sys.executable, SPLIT, sdf, "-o", batches, "--batch-size", "10"],
+                capture_output=True,
+                text=True,
             )
-            rc, _ = run_filter(batches, out,
-                               extra_args=["--force-keep-rejected"])
+            rc, _ = run_filter(batches, out, extra_args=["--force-keep-rejected"])
             assert rc == 0
             from lib.parquet_io import read_batch
+
             rows = []
             for f in sorted(os.listdir(out)):
                 if f.endswith(".parquet"):
@@ -436,40 +493,67 @@ class TestWorkers:
 
     def test_workers_1_vs_4_identical(self):
         from lib.parquet_io import read_batch
+
         with tempfile.TemporaryDirectory() as tmp:
             sdf = os.path.join(tmp, "in.sdf")
-            _write_sdf_3d(sdf, [
-                ("c1ccccc1", _tags("BENZ")),
-                ("Cc1ccccc1", _tags("TOL")),
-                ("c1ccncc1", _tags("PYR")),
-                ("[NH3+]CC(=O)[O-]", _tags("GLY")),
-            ])
+            _write_sdf_3d(
+                sdf,
+                [
+                    ("c1ccccc1", _tags("BENZ")),
+                    ("Cc1ccccc1", _tags("TOL")),
+                    ("c1ccncc1", _tags("PYR")),
+                    ("[NH3+]CC(=O)[O-]", _tags("GLY")),
+                ],
+            )
             batches = os.path.join(tmp, "batches")
             subprocess.run(
                 [sys.executable, SPLIT, sdf, "-o", batches, "--batch-size", "10"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             out1 = os.path.join(tmp, "out1")
             out4 = os.path.join(tmp, "out4")
-            rc1, _ = run_filter(batches, out1, rejects_dir=os.path.join(tmp, "r1"),
-                                extra_args=["--workers", "1", "--force-keep-rejected"])
-            rc4, _ = run_filter(batches, out4, rejects_dir=os.path.join(tmp, "r4"),
-                                extra_args=["--workers", "4", "--force-keep-rejected"])
+            rc1, _ = run_filter(
+                batches,
+                out1,
+                rejects_dir=os.path.join(tmp, "r1"),
+                extra_args=["--workers", "1", "--force-keep-rejected"],
+            )
+            rc4, _ = run_filter(
+                batches,
+                out4,
+                rejects_dir=os.path.join(tmp, "r4"),
+                extra_args=["--workers", "4", "--force-keep-rejected"],
+            )
             assert rc1 == 0 and rc4 == 0
 
-            rows1 = [r for f in sorted(os.listdir(out1)) if f.endswith(".parquet")
-                     for r in read_batch(os.path.join(out1, f))]
-            rows4 = [r for f in sorted(os.listdir(out4)) if f.endswith(".parquet")
-                     for r in read_batch(os.path.join(out4, f))]
+            rows1 = [
+                r
+                for f in sorted(os.listdir(out1))
+                if f.endswith(".parquet")
+                for r in read_batch(os.path.join(out1, f))
+            ]
+            rows4 = [
+                r
+                for f in sorted(os.listdir(out4))
+                if f.endswith(".parquet")
+                for r in read_batch(os.path.join(out4, f))
+            ]
             assert len(rows1) == len(rows4) == 4
 
-            keys = ["SourceID", "filter_status", "filter_reason", "mol_block",
-                    "num_atoms", "num_bonds", "n_fragments"]
+            keys = [
+                "SourceID",
+                "filter_status",
+                "filter_reason",
+                "mol_block",
+                "num_atoms",
+                "num_bonds",
+                "n_fragments",
+            ]
             for a, b in zip(rows1, rows4):
                 assert a["SourceID"] == b["SourceID"]
                 for k in keys:
-                    assert _norm(a[k]) == _norm(b[k]), \
-                        f"{a['SourceID']} {k}: {a[k]!r} != {b[k]!r}"
+                    assert _norm(a[k]) == _norm(b[k]), f"{a['SourceID']} {k}: {a[k]!r} != {b[k]!r}"
 
 
 def _run_single_bond_filter(tmp, entries, extra_args=None):
@@ -483,11 +567,13 @@ def _run_single_bond_filter(tmp, entries, extra_args=None):
     out = os.path.join(tmp, "out")
     rc_split = subprocess.run(
         [sys.executable, SPLIT, sdf, "-o", batches, "--batch-size", "10"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     ).returncode
     assert rc_split == 0
     rc, stdout = run_filter(batches, out, extra_args=extra_args or [])
     from lib.parquet_io import read_batch
+
     rows = []
     for f in sorted(os.listdir(out)):
         if f.endswith(".parquet"):
@@ -508,7 +594,8 @@ class TestSmilesAuthoritative:
         charge; SMILES recovers N+ → rejected as zwitterion (not mol_corrupt)."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, _, rows = _run_single_bond_filter(
-                tmp, [("[NH2+]CCCC(=O)[O-]", _tags("ZWIBUG"))],
+                tmp,
+                [("[NH2+]CCCC(=O)[O-]", _tags("ZWIBUG"))],
                 ["--force-keep-rejected"],
             )
             assert rc == 0
@@ -520,7 +607,8 @@ class TestSmilesAuthoritative:
         """Nitro (adjacent N+/O-) recovered from SMILES → kept, not zwitterion."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, _, rows = _run_single_bond_filter(
-                tmp, [("C[N+](=O)[O-]", _tags("NITRO"))],
+                tmp,
+                [("C[N+](=O)[O-]", _tags("NITRO"))],
             )
             assert rc == 0
             assert len(rows) == 1
@@ -531,7 +619,8 @@ class TestSmilesAuthoritative:
         DetermineBonds would emit triple bonds instead)."""
         with tempfile.TemporaryDirectory() as tmp:
             rc, _, rows = _run_single_bond_filter(
-                tmp, [("c1ccccc1", _tags("BENZ"))],
+                tmp,
+                [("c1ccccc1", _tags("BENZ"))],
             )
             assert rc == 0
             assert len(rows) == 1
@@ -552,7 +641,8 @@ class TestReportSplit:
     def test_separate_lines_present(self):
         with tempfile.TemporaryDirectory() as tmp:
             rc, stdout, _ = _run_single_bond_filter(
-                tmp, [("CCO", _tags("M1"))],
+                tmp,
+                [("CCO", _tags("M1"))],
             )
             assert rc == 0
             assert "Mol corrupt" in stdout

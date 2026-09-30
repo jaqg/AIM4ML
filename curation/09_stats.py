@@ -14,9 +14,9 @@ Usage:
     python3 08_stats.py -i reordered_batches/ -o stats/ --tanimoto --workers 8
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 from tqdm import tqdm
 
@@ -24,14 +24,14 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from lib.parquet_io import read_batch
 from rdkit import Chem
 from rdkit.Chem import Descriptors, rdFingerprintGenerator
-
-from lib.parquet_io import read_batch
 
 # Shared fingerprint list for multiprocessing workers.
 _GLOBAL_FP_LIST = None
@@ -46,6 +46,7 @@ def _should_exclude(row, rules):
 
 
 # -- Descriptors ----------------------------------------------------------
+
 
 def compute_descriptors(smiles):
     """Return (MolWt, TPSA, logP, nrot, num_atoms) from canonical SMILES.
@@ -72,6 +73,7 @@ def compute_descriptors(smiles):
 
 
 # -- Fingerprints (Tanimoto) ----------------------------------------------
+
 
 def compute_fingerprints(smiles_list, n_bits=2048, radius=2):
     """Morgan FP for a list of canonical SMILES. Returns list of fp objects."""
@@ -104,14 +106,18 @@ def nearest_neighbour_tanimoto(fps, workers=1):
 
     if workers > 1:
         from multiprocessing import Pool
+
         chunk_size = max(50, len(smi_list) // (workers * 4))
         indices = list(range(len(fp_list)))
         with Pool(workers, initializer=_init_worker, initargs=(fp_list,)) as pool:
-            sim_results = list(tqdm(
-                pool.imap_unordered(_compute_one_tanimoto, indices,
-                                    chunksize=chunk_size),
-                total=len(indices), desc="Tanimoto", unit="mol",
-            ))
+            sim_results = list(
+                tqdm(
+                    pool.imap_unordered(_compute_one_tanimoto, indices, chunksize=chunk_size),
+                    total=len(indices),
+                    desc="Tanimoto",
+                    unit="mol",
+                )
+            )
         # Reconstruct ordered result: idx → max_sim
         result_map = {smi_list[idx]: sim for idx, sim in sim_results}
     else:
@@ -130,6 +136,7 @@ def nearest_neighbour_tanimoto(fps, workers=1):
 def _compute_one_tanimoto(i):
     """Worker: compute max Tanimoto for molecule i against all others."""
     from rdkit import DataStructs
+
     fp_list = _GLOBAL_FP_LIST
     sims = DataStructs.BulkTanimotoSimilarity(fp_list[i], fp_list)
     sims[i] = -1
@@ -144,12 +151,12 @@ def _init_worker(fp_list):
 # -- Funnel report --------------------------------------------------------
 
 STAGE_ORDER = [
-    ("Energy positive",     "energy_status",    "energy_positive"),
-    ("Energy prefilter (OLS)",  "energy_status",    "flagged_ols"),
-    ("Chemical filter",    "filter_status",    "rejected"),
-    ("Stereo filter",      "stereo_status",    "removed_enantiomer"),
-    ("Reorder",             "reorder_status",   "failed"),
-    ("Conformer filter",   "conformer_status", "removed_conformer"),
+    ("Energy positive", "energy_status", "energy_positive"),
+    ("Energy prefilter (OLS)", "energy_status", "flagged_ols"),
+    ("Chemical filter", "filter_status", "rejected"),
+    ("Stereo filter", "stereo_status", "removed_enantiomer"),
+    ("Reorder", "reorder_status", "failed"),
+    ("Conformer filter", "conformer_status", "removed_conformer"),
 ]
 
 
@@ -159,9 +166,9 @@ def _print_funnel(rows):
     n_input = len(pool)
     cum_pass = n_input
 
-    print(f"\nCuration funnel")
+    print("\nCuration funnel")
     print(f"  {'Stage':22s} {'Cum. pass':>10s} {'New rejected':>13s}")
-    print(f"  {'-'*22} {'-'*10} {'-'*13}")
+    print(f"  {'-' * 22} {'-' * 10} {'-' * 13}")
     print(f"  {'Input':22s} {n_input:10d} {'—':>13s}")
 
     for stage_name, col, fail_val in STAGE_ORDER:
@@ -177,32 +184,49 @@ def _print_funnel(rows):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 8 — Descriptors and diversity statistics."
     )
-    p.add_argument("-i", "--input-dir", type=str, default="conformer_batches",
-                   help="Input Parquet batch directory (default: conformer_batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="stats",
-                   help="Output directory for stats and plots (default: stats/).")
-    p.add_argument("--tanimoto", action="store_true",
-                   help="Compute Tanimoto similarity (slower, O(n²)).")
-    p.add_argument("--workers", type=int, default=1,
-                   help="Parallel workers for Tanimoto (if --tanimoto).")
-    p.add_argument("--exclude", type=str, action="append", default=[],
-                   metavar="COLUMN=VALUE",
-                   help="Exclude rows where COLUMN == VALUE (repeatable).")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="conformer_batches",
+        help="Input Parquet batch directory (default: conformer_batches/).",
+    )
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="stats",
+        help="Output directory for stats and plots (default: stats/).",
+    )
+    p.add_argument(
+        "--tanimoto", action="store_true", help="Compute Tanimoto similarity (slower, O(n²))."
+    )
+    p.add_argument(
+        "--workers", type=int, default=1, help="Parallel workers for Tanimoto (if --tanimoto)."
+    )
+    p.add_argument(
+        "--exclude",
+        type=str,
+        action="append",
+        default=[],
+        metavar="COLUMN=VALUE",
+        help="Exclude rows where COLUMN == VALUE (repeatable).",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "09_stats")
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -259,8 +283,9 @@ def main():
             seen_cids.add(cid)
             # Pick conformer_status=kept if available, else first
             candidates = cid_to_rows[cid]
-            best = next((r for r in candidates
-                         if r.get("conformer_status") == "kept"), candidates[0])
+            best = next(
+                (r for r in candidates if r.get("conformer_status") == "kept"), candidates[0]
+            )
             unique_rows.append(best)
     n_unique = len(unique_rows)
     if n_unique < total:
@@ -292,7 +317,7 @@ def main():
     # -- Compute Tanimoto (optional) --------------------------------------
     tanimoto_map = {}
     if args.tanimoto:
-        print(f"Computing Tanimoto NN (Morgan r=2, 2048 bits) ...")
+        print("Computing Tanimoto NN (Morgan r=2, 2048 bits) ...")
         fps = compute_fingerprints(all_smiles)
         tanimoto_map = nearest_neighbour_tanimoto(fps, workers=args.workers)
         tanimoto_vals = [tanimoto_map.get(smi) for smi in all_smiles]
@@ -303,12 +328,12 @@ def main():
 
     # -- Write CSV --------------------------------------------------------
     import csv
+
     csv_path = os.path.join(args.output_dir, "stats_summary.csv")
 
     # Build dynamic headers: metadata columns (excluding mol_block) + descriptors
     exclude = {"mol_block", "_mol"}
-    meta_keys = [k for k in all_rows[0].keys()
-                 if k not in exclude and not k.startswith("_")]
+    meta_keys = [k for k in all_rows[0].keys() if k not in exclude and not k.startswith("_")]
     desc_keys = ["MolWt", "TPSA", "logP", "nrot", "num_atoms", "max_tanimoto"]
     headers = meta_keys + desc_keys
 
@@ -319,48 +344,66 @@ def main():
         writer.writerow(headers)
         for i, row in enumerate(all_rows):
             meta_vals = [row.get(k, "") for k in meta_keys]
-            desc_vals = [mol_wt_list[i], tpsa_list[i], logp_list[i],
-                         nrot_list[i], nat_list[i], tanimoto_vals[i]]
+            desc_vals = [
+                mol_wt_list[i],
+                tpsa_list[i],
+                logp_list[i],
+                nrot_list[i],
+                nat_list[i],
+                tanimoto_vals[i],
+            ]
             writer.writerow(meta_vals + desc_vals)
     print(f"\n  Stats → {csv_path}")
 
     # -- Histograms -------------------------------------------------------
-    _plot_hist(nat_list, "Number of atoms (NAT)", plots_dir, "hist_nat.pdf",
-               valid_only=True)
-    _plot_hist([mw for mw in mol_wt_list if mw is not None],
-               "Molecular weight (Da)", plots_dir, "hist_molwt.pdf")
-    _plot_hist([t for t in tpsa_list if t is not None],
-               "TPSA (Å²)", plots_dir, "hist_tpsa.pdf")
-    _plot_hist([e for e in all_energies if not np.isnan(e)],
-               "Energy (Ha)", plots_dir, "hist_energy.pdf")
+    _plot_hist(nat_list, "Number of atoms (NAT)", plots_dir, "hist_nat.pdf", valid_only=True)
+    _plot_hist(
+        [mw for mw in mol_wt_list if mw is not None],
+        "Molecular weight (Da)",
+        plots_dir,
+        "hist_molwt.pdf",
+    )
+    _plot_hist([t for t in tpsa_list if t is not None], "TPSA (Å²)", plots_dir, "hist_tpsa.pdf")
+    _plot_hist(
+        [e for e in all_energies if not np.isnan(e)], "Energy (Ha)", plots_dir, "hist_energy.pdf"
+    )
     if args.tanimoto:
-        _plot_hist([t for t in tanimoto_vals if t is not None],
-                   "Max Tanimoto (nearest neighbour)", plots_dir,
-                   "hist_tanimoto.pdf")
+        _plot_hist(
+            [t for t in tanimoto_vals if t is not None],
+            "Max Tanimoto (nearest neighbour)",
+            plots_dir,
+            "hist_tanimoto.pdf",
+        )
 
     # -- Funnel report ----------------------------------------------------
     _print_funnel(all_rows)
 
     # -- Summary ----------------------------------------------------------
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total molecules:       {total_raw}")
     if n_excluded:
         print(f"  Excluded by rules:     {n_excluded}")
     print(f"  Processed:             {total}")
     if mol_wt_list.count(None) < total:
         valid_mw = [mw for mw in mol_wt_list if mw is not None]
-        print(f"  MolWt:  mean={np.mean(valid_mw):.1f}  median={np.median(valid_mw):.1f}  "
-              f"min={np.min(valid_mw):.1f}  max={np.max(valid_mw):.1f}")
+        print(
+            f"  MolWt:  mean={np.mean(valid_mw):.1f}  median={np.median(valid_mw):.1f}  "
+            f"min={np.min(valid_mw):.1f}  max={np.max(valid_mw):.1f}"
+        )
     if tpsa_list.count(None) < total:
         valid_t = [t for t in tpsa_list if t is not None]
-        print(f"  TPSA:   mean={np.mean(valid_t):.1f}  median={np.median(valid_t):.1f}  "
-              f"min={np.min(valid_t):.1f}  max={np.max(valid_t):.1f}")
+        print(
+            f"  TPSA:   mean={np.mean(valid_t):.1f}  median={np.median(valid_t):.1f}  "
+            f"min={np.min(valid_t):.1f}  max={np.max(valid_t):.1f}"
+        )
     if args.tanimoto:
         valid_tani = [t for t in tanimoto_vals if t is not None]
         if valid_tani:
-            print(f"  Tanimoto NN: mean={np.mean(valid_tani):.3f}  "
-                  f"median={np.median(valid_tani):.3f}  "
-                  f"max={np.max(valid_tani):.3f}")
+            print(
+                f"  Tanimoto NN: mean={np.mean(valid_tani):.3f}  "
+                f"median={np.median(valid_tani):.3f}  "
+                f"max={np.max(valid_tani):.3f}"
+            )
         if n_t1:
             print(f"  T=1.0 pairs:       {n_t1}")
 

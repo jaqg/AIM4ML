@@ -26,27 +26,25 @@ Usage:
     python3 06_stereo_filter.py --remove-enantiomers  # legacy: drop one per pair
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit.Chem.rdchem import ChiralType, BondStereo
-from rdkit import RDLogger
-from rdkit import rdBase
+from rdkit import Chem, RDLogger, rdBase
+from rdkit.Chem.rdchem import BondStereo, ChiralType
 
 RDLogger.DisableLog("rdApp.*")
 
 from lib.parquet_io import read_batch, write_batch
-from lib.sdf_io import write_reject_sdf
 from lib.rdkit_version import check_min_rdkit
-
+from lib.sdf_io import write_reject_sdf
 
 # -- Stereo helpers -------------------------------------------------------
+
 
 def flat_smiles(smiles):
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
@@ -72,7 +70,8 @@ def _mol_from_row(row, can_smi):
 
 def has_tetrahedral_stereo(mol):
     return any(
-        atom.GetChiralTag() in (
+        atom.GetChiralTag()
+        in (
             ChiralType.CHI_TETRAHEDRAL_CW,
             ChiralType.CHI_TETRAHEDRAL_CCW,
         )
@@ -127,8 +126,7 @@ def _has_spiro_chiral(mol):
     for atom in mol.GetAtoms():
         if ring_count[atom.GetIdx()] >= 2:
             chi = atom.GetChiralTag()
-            if chi in (ChiralType.CHI_TETRAHEDRAL_CW,
-                        ChiralType.CHI_TETRAHEDRAL_CCW):
+            if chi in (ChiralType.CHI_TETRAHEDRAL_CW, ChiralType.CHI_TETRAHEDRAL_CCW):
                 return True
     return False
 
@@ -203,8 +201,7 @@ def are_enantiomers_robust(mol_a, mol_b):
             return False
 
     # Chiral centers must ALL be OPPOSITE
-    chiral_keys = [(k, i) for (k, i) in desc_a
-                   if k in ("tetrahedral", "atropisomer")]
+    chiral_keys = [(k, i) for (k, i) in desc_a if k in ("tetrahedral", "atropisomer")]
     if not chiral_keys:
         return False
     n_opposite = 0
@@ -244,38 +241,59 @@ def _are_opposite_descriptors(d_a, d_b):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
-    p = argparse.ArgumentParser(
-        description="AIM4ML Stage 6 — Enantiomer filter (SMILES-based)."
+    p = argparse.ArgumentParser(description="AIM4ML Stage 6 — Enantiomer filter (SMILES-based).")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="deduped_batches",
+        help="Input Parquet batch directory (default: deduped_batches/).",
     )
-    p.add_argument("-i", "--input-dir", type=str, default="deduped_batches",
-                   help="Input Parquet batch directory (default: deduped_batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="stereo_batches",
-                   help="Output directory (default: stereo_batches/).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/06_stereo_filter",
-                   help="Rejected molecules SDF directory (default: rejects/06_stereo_filter/).")
-    p.add_argument("--remove-enantiomers", action="store_true",
-                   help="Remove one enantiomer per detected pair "
-                        "(default: keep all enantiomers — D09-overturn).")
-    p.add_argument("--robust-stereo", action="store_true",
-                   help="Always use substructure-based stereo comparison (slower, correct).")
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="stereo_batches",
+        help="Output directory (default: stereo_batches/).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/06_stereo_filter",
+        help="Rejected molecules SDF directory (default: rejects/06_stereo_filter/).",
+    )
+    p.add_argument(
+        "--remove-enantiomers",
+        action="store_true",
+        help="Remove one enantiomer per detected pair "
+        "(default: keep all enantiomers — D09-overturn).",
+    )
+    p.add_argument(
+        "--robust-stereo",
+        action="store_true",
+        help="Always use substructure-based stereo comparison (slower, correct).",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "06_stereo_filter")
     args.keep_enantiomers = not args.remove_enantiomers
 
     if not check_min_rdkit():
-        print(f"ERROR: RDKit {rdBase.rdkitVersion} < 2024.03 — "
-              f"atropisomer stereochemistry unsupported", file=sys.stderr)
+        print(
+            f"ERROR: RDKit {rdBase.rdkitVersion} < 2024.03 — "
+            f"atropisomer stereochemistry unsupported",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -339,8 +357,7 @@ def main():
         # Group-level dispatch: robust if ANY member has spiro-chiral
         # or atropisomer stereo (canonical-SMILES path unreliable there).
         needs_robust = args.robust_stereo or any(
-            m is not None and (_has_spiro_chiral(m) or _has_atropisomer(m))
-            for m in mols
+            m is not None and (_has_spiro_chiral(m) or _has_atropisomer(m)) for m in mols
         )
         if needs_robust and not args.robust_stereo:
             n_robust_fallback += 1
@@ -352,7 +369,6 @@ def main():
             for i in range(n):
                 if not keep[i]:
                     continue
-                idx_i = members[i][0]
                 mol_i = mols[i]
                 if mol_i is None:
                     continue
@@ -391,12 +407,11 @@ def main():
             buckets = {}
             for s, idxs in smi_to_idxs.items():
                 m = idx_to_mol[idxs[0]]
-                s_inv = Chem.MolToSmiles(invert_all_stereo(m),
-                                         isomericSmiles=True)
+                s_inv = Chem.MolToSmiles(invert_all_stereo(m), isomericSmiles=True)
                 buckets.setdefault(min(s, s_inv), []).append(s)
 
             for key, smis in buckets.items():
-                if len(smis) >= 2:   # == 2: one unique enantiomer pair
+                if len(smis) >= 2:  # == 2: one unique enantiomer pair
                     n_pairs_detected += 1
                     if not args.keep_enantiomers:
                         for s in smis[1:]:
@@ -439,13 +454,12 @@ def main():
     # -- Reject SDF -------------------------------------------------------
     if rejected_rows:
         reject_path = os.path.join(args.rejects_dir, "stereo_removed.sdf")
-        write_reject_sdf(reject_path, rejected_rows,
-                         reject_reason="removed_enantiomer")
+        write_reject_sdf(reject_path, rejected_rows, reject_reason="removed_enantiomer")
         print(f"  {len(rejected_rows)} enantiomers → {reject_path}")
 
     # -- Report ------------------------------------------------------------
     total = total_mols
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:                 {total}")
     print(f"  Kept:                  {n_kept}")
     print(f"  Removed enantiomers:   {n_removed}")
@@ -453,8 +467,7 @@ def main():
     if n_atrop_pairs_detected:
         print(f"  Atropisomer pairs detected: {n_atrop_pairs_detected}")
     if args.keep_enantiomers:
-        print(f"  (enantiomers kept by default; use --remove-enantiomers "
-              f"to drop one per pair)")
+        print("  (enantiomers kept by default; use --remove-enantiomers to drop one per pair)")
     print(f"  Complexes (skipped):   {n_complex}")
     if n_robust_fallback:
         print(f"  Robust fallback groups: {n_robust_fallback}")

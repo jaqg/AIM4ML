@@ -21,26 +21,25 @@ Usage:
     python3 05_validate.py -i deduped_batches/
 """
 
-import os
-import sys
 import argparse
 import hashlib
 import math
+import os
+import sys
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit import RDLogger
+from rdkit import Chem, RDLogger
 
 RDLogger.DisableLog("rdApp.*")
 
 from lib.parquet_io import read_batch
 from lib.sdf_io import write_reject_sdf
 
-
 # -- Validate one molecule -----------------------------------------------
+
 
 def validate_row(row):
     """
@@ -53,8 +52,7 @@ def validate_row(row):
     errors = []
 
     # 1 — mol_block reparses
-    mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False,
-                               removeHs=False)
+    mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False, removeHs=False)
     if mol is None:
         return "invalid", ["mol_block: could not parse"]
     n_atoms_mol = mol.GetNumAtoms()
@@ -62,11 +60,9 @@ def validate_row(row):
 
     # 2 — atom/bond counts match metadata
     if n_atoms_mol != row.get("num_atoms"):
-        errors.append(f"num_atoms mismatch: stored={row.get('num_atoms')}, "
-                      f"mol={n_atoms_mol}")
+        errors.append(f"num_atoms mismatch: stored={row.get('num_atoms')}, mol={n_atoms_mol}")
     if n_bonds_mol != row.get("num_bonds"):
-        errors.append(f"num_bonds mismatch: stored={row.get('num_bonds')}, "
-                      f"mol={n_bonds_mol}")
+        errors.append(f"num_bonds mismatch: stored={row.get('num_bonds')}, mol={n_bonds_mol}")
 
     # 3 — CanonicalSMILES round-trip (sanitize first to match Stage 4, which
     # canonicalizes a sanitized mol — aromatic, not kekule)
@@ -78,16 +74,14 @@ def validate_row(row):
             recomputed = Chem.MolToSmiles(mol_san)
             if recomputed != stored_smi:
                 errors.append(
-                    f"CanonicalSMILES mismatch: stored={stored_smi}, "
-                    f"recomputed={recomputed}"
+                    f"CanonicalSMILES mismatch: stored={stored_smi}, recomputed={recomputed}"
                 )
         except Exception:
             errors.append("CanonicalSMILES: kekulize failed during validation")
 
     # 4 — Energy_Ha is finite
     energy = row.get("Energy_Ha")
-    if energy is None or (isinstance(energy, float) and
-                          (math.isnan(energy) or math.isinf(energy))):
+    if energy is None or (isinstance(energy, float) and (math.isnan(energy) or math.isinf(energy))):
         errors.append("Energy_Ha: not finite")
 
     # 5 — CompoundID consistency (Stage 4: MD5(canonical | atrop_key))
@@ -98,8 +92,7 @@ def validate_row(row):
         cid_input = stored_smi + (f"|{atrop}" if atrop else "")
         recomputed_cid = hashlib.md5(cid_input.encode()).hexdigest()
         if recomputed_cid != cid:
-            errors.append(f"CompoundID mismatch: stored={cid}, "
-                          f"recomputed={recomputed_cid}")
+            errors.append(f"CompoundID mismatch: stored={cid}, recomputed={recomputed_cid}")
 
     if errors:
         return "invalid", errors
@@ -108,31 +101,39 @@ def validate_row(row):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
-    p = argparse.ArgumentParser(
-        description="AIM4ML Stage 5 — Integrity cross-checks."
+    p = argparse.ArgumentParser(description="AIM4ML Stage 5 — Integrity cross-checks.")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="deduped_batches",
+        help="Input Parquet batch directory (default: deduped_batches/).",
     )
-    p.add_argument("-i", "--input-dir", type=str, default="deduped_batches",
-                   help="Input Parquet batch directory (default: deduped_batches/).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/05_validate",
-                   help="Invalid molecules SDF directory (default: rejects/05_validate/).")
-    p.add_argument("--skip", action="store_true",
-                   help="Skip validation entirely (for general pipeline runs).")
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/05_validate",
+        help="Invalid molecules SDF directory (default: rejects/05_validate/).",
+    )
+    p.add_argument(
+        "--skip", action="store_true", help="Skip validation entirely (for general pipeline runs)."
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.input_dir, "05_validate")
 
     if args.skip:
         print("Validation skipped (--skip).")
         sys.exit(0)
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -142,7 +143,7 @@ def main():
     total_ok = 0
     total_invalid = 0
     invalid_rows = []
-    all_cids = {}   # cid → (batch, idx) for collision detection
+    all_cids = {}  # cid → (batch, idx) for collision detection
     cid_collisions = 0
     rejected_present = 0
 
@@ -179,20 +180,21 @@ def main():
     # -- Reject SDF -------------------------------------------------------
     if invalid_rows:
         reject_path = os.path.join(args.rejects_dir, "validate_invalid.sdf")
-        write_reject_sdf(reject_path, invalid_rows,
-                         reject_reason="validate_invalid")
+        write_reject_sdf(reject_path, invalid_rows, reject_reason="validate_invalid")
         print(f"  {len(invalid_rows)} invalid → {reject_path}")
 
     # -- Report ------------------------------------------------------------
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:          {total}")
     print(f"  OK:             {total_ok}")
     print(f"  Invalid:        {total_invalid}")
     print(f"  CID collisions: {cid_collisions}")
 
     if rejected_present:
-        print(f"\n  ⚠ {rejected_present} molecules with filter_status='rejected' "
-              f"still present in batches (pipeline carries them through)")
+        print(
+            f"\n  ⚠ {rejected_present} molecules with filter_status='rejected' "
+            f"still present in batches (pipeline carries them through)"
+        )
 
     if cid_collisions:
         print(f"\n  ⚠ {cid_collisions} CompoundID collisions detected")

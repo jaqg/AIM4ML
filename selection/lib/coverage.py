@@ -51,8 +51,18 @@ def env_to_mols(atom_envs):
     return {eid: sorted(mols) for eid, mols in d.items()}
 
 
-def floor_pass(atom_envs, env_nmols, env_natoms, fp_matrix, n_budget, w,
-               target_envs=None, max_sim=None, counts=None, scores=None):
+def floor_pass(
+    atom_envs,
+    env_nmols,
+    env_natoms,
+    fp_matrix,
+    n_budget,
+    w,
+    target_envs=None,
+    max_sim=None,
+    counts=None,
+    scores=None,
+):
     """Coverage-constrained diversity (weighted greedy) — handoff §3.3.
 
     Forced picks first (env with exactly ONE carrier molecule), then choice
@@ -142,9 +152,12 @@ def floor_pass(atom_envs, env_nmols, env_natoms, fp_matrix, n_budget, w,
                 if in_selected[mi] or mi in seen:
                     continue
                 seen.add(mi)
-                unc = sum(1 for atom_envs_i in atom_envs[mi]
-                          for e2 in atom_envs_i
-                          if e2 in rare_set and e2 not in covered)
+                unc = sum(
+                    1
+                    for atom_envs_i in atom_envs[mi]
+                    for e2 in atom_envs_i
+                    if e2 in rare_set and e2 not in covered
+                )
                 div = 1.0 - float(max_sim[mi])
                 score = w * unc + (1.0 - w) * div
                 # tie-break: more coverage, then lower index (deterministic)
@@ -195,9 +208,12 @@ def greedy_set_cover_curve(atom_envs, env_nmols, env_natoms):
         for mi in range(n):
             if mi in selected:
                 continue
-            unc = sum(1 for atom_envs_i in atom_envs[mi]
-                      for e2 in atom_envs_i
-                      if e2 in rare_set and e2 not in covered)
+            unc = sum(
+                1
+                for atom_envs_i in atom_envs[mi]
+                for e2 in atom_envs_i
+                if e2 in rare_set and e2 not in covered
+            )
             if unc > best_unc:
                 best, best_unc = mi, unc
         if best is None or best_unc == 0:

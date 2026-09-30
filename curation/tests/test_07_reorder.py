@@ -1,16 +1,16 @@
 """test_07_reorder.py — Regression test for Stage 7 RDKit reorder."""
 
+import importlib
 import os
 import sys
-import importlib
 
-import pytest
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Geometry import rdGeometry
 
 _SCRIPTS = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..",
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
 )
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
@@ -53,7 +53,8 @@ class TestReorder:
         AllChem.EmbedMolecule(mol, randomSeed=42)
         block = Chem.MolToMolBlock(mol)
         can, new_block, status, reason = _dedup.canonicalize_and_assign(
-            block, "c1ccccc1",
+            block,
+            "c1ccccc1",
         )
         assert status == "ok", reason
         out = _reorder.reorder_rdkit(new_block)

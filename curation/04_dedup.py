@@ -17,29 +17,27 @@ Usage:
     python3 04_dedup.py -i curated_batches/ -o deduped_batches/
 """
 
-import os
-import sys
 import argparse
 import hashlib
 import math
+import os
+import sys
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit import RDLogger
-from rdkit import rdBase
+from rdkit import Chem, RDLogger, rdBase
 from rdkit.Chem import AllChem
 
 RDLogger.DisableLog("rdApp.*")
 
 from lib.parquet_io import read_batch, write_batch
-from lib.sdf_io import write_reject_sdf
 from lib.rdkit_version import check_min_rdkit
-
+from lib.sdf_io import write_reject_sdf
 
 # -- Core logic -----------------------------------------------------------
+
 
 def canonicalize_and_assign(mol_block, smiles_tag=None):
     """
@@ -71,14 +69,16 @@ def canonicalize_and_assign(mol_block, smiles_tag=None):
         pass  # sanitize/kekulize failed → try template fallback
 
     # -- Template fallback (requires SMILES tag) --------------------------
-    if smiles_tag is None or (isinstance(smiles_tag, float) and math.isnan(smiles_tag)) or smiles_tag == "":
-        return None, mol_block, "bond_assignment_failed", \
-               "kekulize failed, no SMILES for template"
+    if (
+        smiles_tag is None
+        or (isinstance(smiles_tag, float) and math.isnan(smiles_tag))
+        or smiles_tag == ""
+    ):
+        return None, mol_block, "bond_assignment_failed", "kekulize failed, no SMILES for template"
 
     template = Chem.MolFromSmiles(smiles_tag)
     if template is None:
-        return None, mol_block, "bond_assignment_failed", \
-               "SMILES tag unparseable"
+        return None, mol_block, "bond_assignment_failed", "SMILES tag unparseable"
 
     try:
         # Match explicit-H mol against explicit-H template (AddHs), implicit-H
@@ -91,8 +91,7 @@ def canonicalize_and_assign(mol_block, smiles_tag=None):
         new_block = _mol_to_block(mol_assigned)
         return can_smi, new_block, "ok", ""
     except Exception:
-        return None, mol_block, "bond_assignment_failed", \
-               "template fallback failed"
+        return None, mol_block, "bond_assignment_failed", "template fallback failed"
 
 
 def _mol_to_block(mol):
@@ -125,35 +124,55 @@ def _extract_atropisomer_key(mol):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 4 — Dedup: canonical SMILES + CompoundID + conformer removal."
     )
-    p.add_argument("-i", "--input-dir", type=str, default="curated_batches",
-                   help="Input Parquet batch directory (default: curated_batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="deduped_batches",
-                   help="Output directory (default: deduped_batches/).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/04_dedup",
-                   help="Rejected molecules SDF directory (default: rejects/04_dedup/).")
-    p.add_argument("--force-keep-rejected", action="store_true",
-                   help="Keep rejected molecules (bond_assignment_failed, mol_corrupt) "
-                        "in the output Parquet batches (default: drop them).")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="curated_batches",
+        help="Input Parquet batch directory (default: curated_batches/).",
+    )
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="deduped_batches",
+        help="Output directory (default: deduped_batches/).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/04_dedup",
+        help="Rejected molecules SDF directory (default: rejects/04_dedup/).",
+    )
+    p.add_argument(
+        "--force-keep-rejected",
+        action="store_true",
+        help="Keep rejected molecules (bond_assignment_failed, mol_corrupt) "
+        "in the output Parquet batches (default: drop them).",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "04_dedup")
 
     if not check_min_rdkit():
-        print(f"ERROR: RDKit {rdBase.rdkitVersion} < 2024.03 — "
-              f"atropisomer stereochemistry unsupported", file=sys.stderr)
+        print(
+            f"ERROR: RDKit {rdBase.rdkitVersion} < 2024.03 — "
+            f"atropisomer stereochemistry unsupported",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -170,7 +189,7 @@ def main():
     rejected_rows = []
 
     for fname in batch_files:
-        in_path  = os.path.join(args.input_dir, fname)
+        in_path = os.path.join(args.input_dir, fname)
         out_path = os.path.join(args.output_dir, fname)
         batch = read_batch(in_path)
         out_rows = []
@@ -178,7 +197,8 @@ def main():
         for row in batch:
             smiles_raw = row.get("SMILES")
             can_smi, new_block, status, reason = canonicalize_and_assign(
-                row["mol_block"], smiles_raw,
+                row["mol_block"],
+                smiles_raw,
             )
 
             if status == "ok":
@@ -186,8 +206,7 @@ def main():
                 row["mol_block"] = new_block
 
                 # Reconstruct mol (includes explicit H) for formula + atrop key
-                dedup_mol = Chem.MolFromMolBlock(new_block, sanitize=False,
-                                                 removeHs=False)
+                dedup_mol = Chem.MolFromMolBlock(new_block, sanitize=False, removeHs=False)
 
                 # Atropisomer key: preserve atrop-enantiomers through dedup.
                 # Canonical SMILES strips atrop stereo, so the key is the only
@@ -207,6 +226,7 @@ def main():
                 if dedup_mol is not None:
                     dedup_mol.UpdatePropertyCache(strict=False)
                     from rdkit.Chem import rdMolDescriptors
+
                     row["Formula"] = rdMolDescriptors.CalcMolFormula(dedup_mol)
 
                 if cid in seen_ids:
@@ -233,8 +253,7 @@ def main():
             #     (conformer dups must flow to Stage 8 for RMSD selection)
             #   - --force-keep-rejected is set (keep everything for debugging)
             keep_in_output = (
-                row["dedup_status"] in ("ok", "conformer_duplicate")
-                or args.force_keep_rejected
+                row["dedup_status"] in ("ok", "conformer_duplicate") or args.force_keep_rejected
             )
             if keep_in_output:
                 out_rows.append(row)
@@ -245,13 +264,12 @@ def main():
     # -- Reject SDF -------------------------------------------------------
     if rejected_rows:
         reject_path = os.path.join(args.rejects_dir, "dedup_rejected.sdf")
-        write_reject_sdf(reject_path, rejected_rows,
-                         reject_reason="dedup_rejected")
+        write_reject_sdf(reject_path, rejected_rows, reject_reason="dedup_rejected")
         print(f"  {len(rejected_rows)} rejected → {reject_path}")
 
     # -- Report ------------------------------------------------------------
     total = total_ok + total_dup + total_fail + total_corrupt
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:                 {total}")
     print(f"  Unique (ok):           {total_ok}")
     print(f"  Conformer duplicates:  {total_dup}")
@@ -259,8 +277,10 @@ def main():
     print(f"  Mol corrupt:           {total_corrupt}")
     print(f"  Written to output:     {n_written}")
     if not args.force_keep_rejected and (total_fail + total_corrupt):
-        print(f"  Dropped from output:   {total_fail + total_corrupt} "
-              f"(use --force-keep-rejected to keep)")
+        print(
+            f"  Dropped from output:   {total_fail + total_corrupt} "
+            f"(use --force-keep-rejected to keep)"
+        )
 
     if total_dup or total_fail:
         sentinel = os.path.join(args.rejects_dir, ".REJECTED")

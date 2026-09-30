@@ -21,9 +21,9 @@ Usage:
     python3 00_validate.py input.sdf -o clean.sdf --rejects-dir rejects/
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 # Ensure the lib/ directory is importable when the script is run from
 # anywhere relative to the scripts folder.
@@ -31,26 +31,32 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit.Chem import SDWriter
-
-from lib.schema import REQUIRED_TAGS, RECOMMENDED_TAGS, OPTIONAL_TAGS
+from lib.schema import OPTIONAL_TAGS, RECOMMENDED_TAGS, REQUIRED_TAGS
 from lib.sdf_io import read_sdf, validate_tags
-
+from rdkit.Chem import SDWriter
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
-    p = argparse.ArgumentParser(
-        description="AIM4ML Stage 0 — Validate input SDF contract."
-    )
+    p = argparse.ArgumentParser(description="AIM4ML Stage 0 — Validate input SDF contract.")
     p.add_argument("input_sdf", type=str, help="Path to pipeline input SDF.")
-    p.add_argument("-o", "--output", type=str, default=None,
-                   help="Clean output SDF (default: same name with _valid.sdf).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/00_validate",
-                   help="Directory for rejected molecules (default: rejects/00_validate/).")
-    p.add_argument("--lenient", action="store_true",
-                   help="Warn on required-tag failures instead of rejecting.")
+    p.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="Clean output SDF (default: same name with _valid.sdf).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/00_validate",
+        help="Directory for rejected molecules (default: rejects/00_validate/).",
+    )
+    p.add_argument(
+        "--lenient", action="store_true", help="Warn on required-tag failures instead of rejecting."
+    )
     return p.parse_args()
 
 
@@ -80,6 +86,7 @@ def main():
         out_sdf = f"{base}_valid{ext}"
 
     from lib.provenance import record_run
+
     record_run(out_sdf, "00_validate")
 
     # -- Read -------------------------------------------------------------
@@ -110,7 +117,7 @@ def main():
         print(f"  {len(rejected)} rejected → {reject_sdf}")
 
     # -- Report -----------------------------------------------------------
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:        {total}")
     print(f"  Valid:        {len(passed)}")
     print(f"  Rejected:     {len(rejected)}")
@@ -119,7 +126,9 @@ def main():
     if warnings:
         print(f"\nWarnings ({len(warnings)}):")
         for idx in warnings:
-            mol_name = entries[idx][0].GetProp("_Name") if entries[idx][0] is not None else f"entry_{idx}"
+            mol_name = (
+                entries[idx][0].GetProp("_Name") if entries[idx][0] is not None else f"entry_{idx}"
+            )
             for w in warnings[idx]:
                 print(f"  {mol_name} — {w}")
 
@@ -140,7 +149,7 @@ def main():
             f.write(f"{len(rejected)} molecule(s) rejected\n")
         sys.exit(1)
     else:
-        print(f"\nValidation PASSED.")
+        print("\nValidation PASSED.")
         sys.exit(0)
 
 

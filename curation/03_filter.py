@@ -21,23 +21,24 @@ Usage:
     python3 03_filter.py -i filtered_batches/ -o curated_batches/
 """
 
+import argparse
 import os
 import sys
-import argparse
 from collections import Counter
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from rdkit import Chem
-from rdkit.Chem import rdDetermineBonds, AllChem
-from rdkit import RDLogger
+from rdkit import Chem, RDLogger
+from rdkit.Chem import AllChem, rdDetermineBonds
 
 RDLogger.DisableLog("rdApp.*")
 
-def check_composition(mol_block, allowed_elements, min_heavy, max_heavy,
-                      min_fragments, max_fragments):
+
+def check_composition(
+    mol_block, allowed_elements, min_heavy, max_heavy, min_fragments, max_fragments
+):
     """
     Fast composition check before expensive DetermineBondOrders.
 
@@ -120,33 +121,34 @@ def _fragment_formulas(mol, frags):
         formulas.append("".join(parts))
     return formulas
 
+
+from lib.parallel import parallel_map
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
-from lib.parallel import parallel_map
-
 
 # -- Presets --------------------------------------------------------------
 
 PRESETS = {
     "neutral_closed_shell": {
-        "charge":       True,   # net formal charge == 0
-        "zwitterion":   True,   # no true zwitterion (non-adjacent charge separation)
-        "radicals":     True,   # radical electrons == 0
+        "charge": True,  # net formal charge == 0
+        "zwitterion": True,  # no true zwitterion (non-adjacent charge separation)
+        "radicals": True,  # radical electrons == 0
     },
     "neutral": {
-        "charge":       True,
-        "zwitterion":   False,
-        "radicals":     False,
+        "charge": True,
+        "zwitterion": False,
+        "radicals": False,
     },
     "none": {
-        "charge":       False,
-        "zwitterion":   False,
-        "radicals":     False,
+        "charge": False,
+        "zwitterion": False,
+        "radicals": False,
     },
 }
 
 
 # -- Filter logic ---------------------------------------------------------
+
 
 def _has_true_zwitterion(mol):
     """True zwitterion = formal charge on an atom with no adjacent
@@ -156,8 +158,7 @@ def _has_true_zwitterion(mol):
         fc = atom.GetFormalCharge()
         if fc == 0:
             continue
-        if not any(n.GetFormalCharge() * fc < 0
-                   for n in atom.GetNeighbors()):
+        if not any(n.GetFormalCharge() * fc < 0 for n in atom.GetNeighbors()):
             return True
     return False
 
@@ -185,8 +186,7 @@ def process_molecule(row, checks):
     -------
     (mol, filter_status, reason)
     """
-    mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False,
-                               removeHs=False)
+    mol = Chem.MolFromMolBlock(row["mol_block"], sanitize=False, removeHs=False)
     if mol is None:
         return None, "mol_corrupt", "could not parse mol_block"
 
@@ -271,8 +271,12 @@ def _process_row_parallel(row):
     the sanitized mol_block + atom/bond counts.
     """
     comp_ok, comp_reason, n_fragments = check_composition(
-        row["mol_block"], _ALLOWED_ELEMENTS, _MIN_HEAVY, _MAX_HEAVY,
-        _MIN_FRAGMENTS, _MAX_FRAGMENTS,
+        row["mol_block"],
+        _ALLOWED_ELEMENTS,
+        _MIN_HEAVY,
+        _MAX_HEAVY,
+        _MIN_FRAGMENTS,
+        _MAX_FRAGMENTS,
     )
     result = {"n_fragments": n_fragments}
     if not comp_ok:
@@ -297,53 +301,92 @@ def _process_row_parallel(row):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 3 — Chemical filter (neutral / non-zwitterion / closed-shell)."
     )
-    p.add_argument("-i", "--input-dir", type=str, default="filtered_batches",
-                   help="Input Parquet batch directory (default: filtered_batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="curated_batches",
-                   help="Output directory (default: curated_batches/).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/03_filter",
-                   help="Rejected molecules SDF directory (default: rejects/03_filter/).")
-    p.add_argument("--preset", type=str, default="neutral_closed_shell",
-                   choices=list(PRESETS.keys()),
-                   help="Filter preset: neutral_closed_shell (default), neutral, none.")
-    p.add_argument("--allowed-elements", type=str, default=None,
-                   help="Comma-separated allowed HEAVY elements (H is always "
-                        "allowed; e.g. C,N,O,S). Molecules with any other "
-                        "element are rejected.")
-    p.add_argument("--min-heavy", type=int, default=None,
-                   help="Minimum number of heavy (non-H) atoms.")
-    p.add_argument("--max-heavy", type=int, default=None,
-                   help="Maximum number of heavy (non-H) atoms.")
-    p.add_argument("--min-fragments", type=int, default=None,
-                   help="Minimum number of connected components (fragments). "
-                        "Molecules with fewer fragments are rejected.")
-    p.add_argument("--max-fragments", type=int, default=None,
-                   help="Maximum number of connected components (fragments). "
-                        "Molecules with more fragments are rejected. "
-                        "Use 1 for single-molecule-only policy.")
-    p.add_argument("--force-keep-rejected", action="store_true",
-                   help="Keep rejected molecules in output (default: drop them).")
-    p.add_argument("--workers", type=int, default=1,
-                   help="Parallel workers for per-molecule processing (default: 1).")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="filtered_batches",
+        help="Input Parquet batch directory (default: filtered_batches/).",
+    )
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="curated_batches",
+        help="Output directory (default: curated_batches/).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/03_filter",
+        help="Rejected molecules SDF directory (default: rejects/03_filter/).",
+    )
+    p.add_argument(
+        "--preset",
+        type=str,
+        default="neutral_closed_shell",
+        choices=list(PRESETS.keys()),
+        help="Filter preset: neutral_closed_shell (default), neutral, none.",
+    )
+    p.add_argument(
+        "--allowed-elements",
+        type=str,
+        default=None,
+        help="Comma-separated allowed HEAVY elements (H is always "
+        "allowed; e.g. C,N,O,S). Molecules with any other "
+        "element are rejected.",
+    )
+    p.add_argument(
+        "--min-heavy", type=int, default=None, help="Minimum number of heavy (non-H) atoms."
+    )
+    p.add_argument(
+        "--max-heavy", type=int, default=None, help="Maximum number of heavy (non-H) atoms."
+    )
+    p.add_argument(
+        "--min-fragments",
+        type=int,
+        default=None,
+        help="Minimum number of connected components (fragments). "
+        "Molecules with fewer fragments are rejected.",
+    )
+    p.add_argument(
+        "--max-fragments",
+        type=int,
+        default=None,
+        help="Maximum number of connected components (fragments). "
+        "Molecules with more fragments are rejected. "
+        "Use 1 for single-molecule-only policy.",
+    )
+    p.add_argument(
+        "--force-keep-rejected",
+        action="store_true",
+        help="Keep rejected molecules in output (default: drop them).",
+    )
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Parallel workers for per-molecule processing (default: 1).",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "03_filter")
     checks = PRESETS[args.preset]
     allowed_elements = None
     if args.allowed_elements:
         allowed_elements = [e.strip() for e in args.allowed_elements.split(",")]
 
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -370,13 +413,12 @@ def main():
     _MAX_FRAGMENTS = args.max_fragments
 
     for fname in batch_files:
-        in_path  = os.path.join(args.input_dir, fname)
+        in_path = os.path.join(args.input_dir, fname)
         out_path = os.path.join(args.output_dir, fname)
         batch = read_batch(in_path)
         out_rows = []
 
-        results = parallel_map(_process_row_parallel, batch,
-                               n_workers=args.workers)
+        results = parallel_map(_process_row_parallel, batch, n_workers=args.workers)
 
         for row, result in zip(batch, results):
             row["n_fragments"] = result["n_fragments"]
@@ -413,23 +455,28 @@ def main():
     # -- Reject SDF -------------------------------------------------------
     if rejected_rows:
         reject_path = os.path.join(args.rejects_dir, "filter_rejected.sdf")
-        write_reject_sdf(reject_path, rejected_rows,
-                         reject_reason="filter_rejected")
+        write_reject_sdf(reject_path, rejected_rows, reject_reason="filter_rejected")
         print(f"  {len(rejected_rows)} rejected → {reject_path}")
 
     # -- Report ------------------------------------------------------------
     total = total_ok + total_rejected + total_mol_corrupt + total_topology_warning
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:             {total}")
-    print(f"  OK:                {total_ok} ({100*total_ok/total:.2f}%)" if total else "  OK: 0")
-    print(f"  Rejected:          {total_rejected} ({100*total_rejected/total:.2f}%)" if total else "  Rejected: 0")
+    print(
+        f"  OK:                {total_ok} ({100 * total_ok / total:.2f}%)" if total else "  OK: 0"
+    )
+    print(
+        f"  Rejected:          {total_rejected} ({100 * total_rejected / total:.2f}%)"
+        if total
+        else "  Rejected: 0"
+    )
     print(f"  Mol corrupt:       {total_mol_corrupt}")
     print(f"  Topology warning:  {total_topology_warning}")
     if n_dropped:
         print(f"  Dropped:      {n_dropped} rejected (use --force-keep-rejected to keep)")
 
     if reason_counts:
-        print(f"\nRejection breakdown:")
+        print("\nRejection breakdown:")
         for reason, count in sorted(reason_counts.items(), key=lambda x: -x[1]):
             print(f"    {reason}: {count}")
 

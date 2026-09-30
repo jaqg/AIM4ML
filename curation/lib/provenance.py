@@ -7,11 +7,12 @@ subsequent calls append stage records.  Append-only, so partial reruns
 and parameter sweeps accumulate a full audit trail in one file.
 """
 
+import datetime
 import json
 import os
-import sys
 import subprocess
-import datetime
+import sys
+
 from rdkit import rdBase
 
 # Directory containing the stage scripts (parent of lib/).  Git commands run
@@ -29,7 +30,9 @@ def _git_commit():
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
-            cwd=_CURATION_DIR, stderr=subprocess.DEVNULL, text=True,
+            cwd=_CURATION_DIR,
+            stderr=subprocess.DEVNULL,
+            text=True,
         ).strip()
     except Exception:
         pass
@@ -45,7 +48,9 @@ def _git_dirty():
     try:
         out = subprocess.check_output(
             ["git", "status", "--porcelain"],
-            cwd=_CURATION_DIR, stderr=subprocess.DEVNULL, text=True,
+            cwd=_CURATION_DIR,
+            stderr=subprocess.DEVNULL,
+            text=True,
         ).strip()
         return bool(out)
     except Exception:
@@ -90,8 +95,11 @@ def record_run(output_path, stage_name):
             "stages": [],
         }
         if prov.get("git_dirty"):
-            print(f"WARNING: Git working tree has uncommitted changes. "
-                  f"Commit hash: {prov['git_commit']}", file=sys.stderr)
+            print(
+                f"WARNING: Git working tree has uncommitted changes. "
+                f"Commit hash: {prov['git_commit']}",
+                file=sys.stderr,
+            )
 
     # Append stage record
     stage_record = {
@@ -103,9 +111,14 @@ def record_run(output_path, stage_name):
 
     # HPC environment variables (log if present)
     hpc_env = {}
-    for key in ["SLURM_JOB_ID", "SLURM_JOB_NAME", "SLURM_NTASKS",
-                "SLURM_CPUS_PER_TASK", "OMP_NUM_THREADS",
-                "CUDA_VISIBLE_DEVICES"]:
+    for key in [
+        "SLURM_JOB_ID",
+        "SLURM_JOB_NAME",
+        "SLURM_NTASKS",
+        "SLURM_CPUS_PER_TASK",
+        "OMP_NUM_THREADS",
+        "CUDA_VISIBLE_DEVICES",
+    ]:
         val = os.environ.get(key)
         if val:
             hpc_env[key] = val

@@ -67,8 +67,7 @@ def skipped_elements(mol_block):
         if m is None:
             return []
         # removeHs needs sanitization to work reliably; filter H explicitly.
-        return sorted({a.GetSymbol() for a in m.GetAtoms()
-                       if a.GetSymbol() != "H"})
+        return sorted({a.GetSymbol() for a in m.GetAtoms() if a.GetSymbol() != "H"})
     except Exception:
         return []
 
@@ -120,22 +119,40 @@ def parse_allowed_elements(spec):
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("-i", "--input", required=True,
-                   help="Directory of curated Parquet batches.")
-    p.add_argument("-o", "--output", required=True,
-                   help="Output directory (descriptors.parquet written here).")
-    p.add_argument("--metric", choices=["morgan", "soap"], default="morgan",
-                   help="Descriptor metric. 'soap' is reserved (D21, needs DScribe).")
-    p.add_argument("--allowed-elements", default=None, metavar="SYMS",
-                   help="Heavy-element whitelist, e.g. 'C,N,O,S'. Molecules "
-                        "carrying any element outside the list are excluded "
-                        "before the env histogram (D64 scope). Default: no "
-                        "element filter.")
-    p.add_argument("--min-atoms", type=int, default=None, metavar="N",
-                   help="Minimum heavy-atom count, inclusive (all heavy atoms, "
-                        "no element split). Default: no lower bound.")
-    p.add_argument("--max-atoms", type=int, default=None, metavar="N",
-                   help="Maximum heavy-atom count, inclusive. Default: no upper bound.")
+    p.add_argument("-i", "--input", required=True, help="Directory of curated Parquet batches.")
+    p.add_argument(
+        "-o", "--output", required=True, help="Output directory (descriptors.parquet written here)."
+    )
+    p.add_argument(
+        "--metric",
+        choices=["morgan", "soap"],
+        default="morgan",
+        help="Descriptor metric. 'soap' is reserved (D21, needs DScribe).",
+    )
+    p.add_argument(
+        "--allowed-elements",
+        default=None,
+        metavar="SYMS",
+        help="Heavy-element whitelist, e.g. 'C,N,O,S'. Molecules "
+        "carrying any element outside the list are excluded "
+        "before the env histogram (D64 scope). Default: no "
+        "element filter.",
+    )
+    p.add_argument(
+        "--min-atoms",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Minimum heavy-atom count, inclusive (all heavy atoms, "
+        "no element split). Default: no lower bound.",
+    )
+    p.add_argument(
+        "--max-atoms",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum heavy-atom count, inclusive. Default: no upper bound.",
+    )
     return p.parse_args(argv)
 
 
@@ -147,11 +164,12 @@ def main(argv=None):
             "Use --metric morgan."
         )
 
-    if (args.min_atoms is not None and args.max_atoms is not None
-            and args.min_atoms > args.max_atoms):
-        raise SystemExit(
-            f"error: --min-atoms ({args.min_atoms}) > --max-atoms "
-            f"({args.max_atoms})")
+    if (
+        args.min_atoms is not None
+        and args.max_atoms is not None
+        and args.min_atoms > args.max_atoms
+    ):
+        raise SystemExit(f"error: --min-atoms ({args.min_atoms}) > --max-atoms ({args.max_atoms})")
 
     allowed = None
     if args.allowed_elements is not None:
@@ -186,12 +204,14 @@ def main(argv=None):
             if d is None:
                 n_skipped += 1
                 elems = skipped_elements(r.get("mol_block"))
-                skipped.append({
-                    "CompoundID": _as_str(r.get("CompoundID")),
-                    "formula": _as_str(r.get("Formula")),
-                    "elements": ",".join(elems),
-                    "rare_elements": ",".join(sorted(set(elems) & RARE_ELEMENTS)),
-                })
+                skipped.append(
+                    {
+                        "CompoundID": _as_str(r.get("CompoundID")),
+                        "formula": _as_str(r.get("Formula")),
+                        "elements": ",".join(elems),
+                        "rare_elements": ",".join(sorted(set(elems) & RARE_ELEMENTS)),
+                    }
+                )
                 continue
             # D64 scope filter — element reason takes precedence over size.
             if allowed is not None:
@@ -202,8 +222,9 @@ def main(argv=None):
                         excl_elem_counts[e] = excl_elem_counts.get(e, 0) + 1
                     continue
             nat = d["nat_heavy"]
-            if (args.min_atoms is not None and nat < args.min_atoms) or \
-               (args.max_atoms is not None and nat > args.max_atoms):
+            if (args.min_atoms is not None and nat < args.min_atoms) or (
+                args.max_atoms is not None and nat > args.max_atoms
+            ):
                 n_excl_size += 1
                 continue
             rows.append(d)
@@ -225,13 +246,13 @@ def main(argv=None):
                 elem_n[e] = elem_n.get(e, 0) + 1
         hist = ", ".join(
             f"{e}={elem_n[e]}/{len(rows)} ({100 * elem_n[e] / len(rows):.0f}%)"
-            for e in sorted(elem_n))
+            for e in sorted(elem_n)
+        )
         print(f"  elements: {hist}")
 
     # Scope-exclusion breakdown (D64) — element reason first, then size.
     if n_excl_elem:
-        per = ", ".join(f"{e}={n}" for e, n in
-                        sorted(excl_elem_counts.items()))
+        per = ", ".join(f"{e}={n}" for e, n in sorted(excl_elem_counts.items()))
         print(f"  excluded by element: {n_excl_elem:,}  ({per})")
     if n_excl_size:
         bounds = []
@@ -247,12 +268,13 @@ def main(argv=None):
         risky = skips_df[skips_df["rare_elements"] != ""]
         print(f"  → skipped.csv written ({len(skipped)} rows)")
         if len(risky):
-            print(f"  ⚠ {len(risky)} skipped molecule(s) carry rare elements "
-                  f"({', '.join(sorted(RARE_ELEMENTS))}) — possible env "
-                  f"coverage hole; check before trusting the rare-env floor:")
+            print(
+                f"  ⚠ {len(risky)} skipped molecule(s) carry rare elements "
+                f"({', '.join(sorted(RARE_ELEMENTS))}) — possible env "
+                f"coverage hole; check before trusting the rare-env floor:"
+            )
             for _, row in risky.iterrows():
-                print(f"      {row['CompoundID']}  {row['formula']}  "
-                      f"rare={row['rare_elements']}")
+                print(f"      {row['CompoundID']}  {row['formula']}  rare={row['rare_elements']}")
     print(f"  → {out_path}")
     return 0
 

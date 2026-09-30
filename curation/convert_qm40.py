@@ -31,42 +31,42 @@ Usage:
     python3 convert_qm40.py --full-data --output /path/to/output.sdf
 """
 
+import argparse
 import os
 import sys
-import argparse
+
 import pandas as pd
-from tqdm import tqdm
 from rdkit import Chem
 from rdkit.Chem import SDWriter
 from rdkit.Geometry import rdGeometry
+from tqdm import tqdm
 
 # -- Paths ---------------------------------------------------------------
 
 _BASE_SAMPLE = "/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/samples"
 
-_LOCAL_SAMPLE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "samples"
-)
+_LOCAL_SAMPLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "samples")
 
 PATHS = {
     "sample": {
         "main_csv": os.path.join(_BASE_SAMPLE, "filtered_sample_main.csv"),
-        "xyz_csv":  os.path.join(_BASE_SAMPLE, "sample_xyz.csv"),
+        "xyz_csv": os.path.join(_BASE_SAMPLE, "sample_xyz.csv"),
         "bond_csv": os.path.join(_BASE_SAMPLE, "sample_bond.csv"),
     },
     "full": {
         "main_csv": "/datos_pool/mldata1/QMdatasets/QM40/main.csv",
-        "xyz_csv":  "/datos_pool/mldata1/QMdatasets/QM40/xyz.csv",
+        "xyz_csv": "/datos_pool/mldata1/QMdatasets/QM40/xyz.csv",
         "bond_csv": "/datos_pool/mldata1/QMdatasets/QM40/bond.csv",
     },
     "local": {
         "main_csv": os.path.join(_LOCAL_SAMPLE, "sample_main.csv"),
-        "xyz_csv":  os.path.join(_LOCAL_SAMPLE, "sample_xyz.csv"),
+        "xyz_csv": os.path.join(_LOCAL_SAMPLE, "sample_xyz.csv"),
         "bond_csv": os.path.join(_LOCAL_SAMPLE, "sample_bond.csv"),
     },
 }
 
 # -- Helpers -------------------------------------------------------------
+
 
 def build_mol(atoms, coords, bond_pairs):
     """
@@ -103,18 +103,17 @@ def compute_formal_charge(charges):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
-    p = argparse.ArgumentParser(
-        description="Convert raw QM40 CSVs to pipeline-standard input SDF."
+    p = argparse.ArgumentParser(description="Convert raw QM40 CSVs to pipeline-standard input SDF.")
+    p.add_argument(
+        "--full-data", action="store_true", help="Run on full QM40 dataset (default: sample)."
     )
-    p.add_argument("--full-data", action="store_true",
-                   help="Run on full QM40 dataset (default: sample).")
-    p.add_argument("--sample", action="store_true",
-                   help="Run on sample dataset (default).")
-    p.add_argument("--local", action="store_true",
-                   help="Run on local sample files in ../samples/.")
-    p.add_argument("--output", type=str, default=None,
-                   help="Output SDF path (default: <mode>/qm40_input.sdf).")
+    p.add_argument("--sample", action="store_true", help="Run on sample dataset (default).")
+    p.add_argument("--local", action="store_true", help="Run on local sample files in ../samples/.")
+    p.add_argument(
+        "--output", type=str, default=None, help="Output SDF path (default: <mode>/qm40_input.sdf)."
+    )
     return p.parse_args()
 
 
@@ -148,8 +147,7 @@ def main():
     if "energy_status" in main_df.columns:
         n_before = len(main_df)
         main_df = main_df[main_df["energy_status"] == "ok"].copy()
-        print(f"  Energy prefilter: {n_before - len(main_df)} removed "
-              f"({len(main_df)} kept)")
+        print(f"  Energy prefilter: {n_before - len(main_df)} removed ({len(main_df)} kept)")
 
     n_rows = len(main_df)
     print(f"  {n_rows} molecules to convert")
@@ -161,10 +159,12 @@ def main():
     print(f"Reading {paths['bond_csv']} ...")
     bond_df = pd.read_csv(paths["bond_csv"])
     bond_groups = {
-        zid: list(zip(
-            grp["atom1"].astype(int),
-            grp["atom2"].astype(int),
-        ))
+        zid: list(
+            zip(
+                grp["atom1"].astype(int),
+                grp["atom2"].astype(int),
+            )
+        )
         for zid, grp in bond_df.groupby("Zinc_id", sort=False)
     }
 
@@ -174,8 +174,9 @@ def main():
     written = 0
     skipped = 0
 
-    for _, row in tqdm(main_df.iterrows(), total=n_rows,
-                       desc="Converting", unit="mol", file=sys.stdout):
+    for _, row in tqdm(
+        main_df.iterrows(), total=n_rows, desc="Converting", unit="mol", file=sys.stdout
+    ):
         zinc_id = row["Zinc_id"]
         raw_smi = row["smile"]
 
@@ -184,12 +185,14 @@ def main():
             continue
 
         grp = xyz_groups[zinc_id]
-        atoms   = grp["atom"].tolist()
-        coords  = list(zip(
-            grp["final_x"].astype(float),
-            grp["final_y"].astype(float),
-            grp["final_z"].astype(float),
-        ))
+        atoms = grp["atom"].tolist()
+        coords = list(
+            zip(
+                grp["final_x"].astype(float),
+                grp["final_y"].astype(float),
+                grp["final_z"].astype(float),
+            )
+        )
         charges = grp["charge"].astype(float).tolist()
         bond_pairs = bond_groups.get(zinc_id, None)
 
@@ -200,14 +203,14 @@ def main():
 
         # Set standard SDF tags
         mol.SetProp("_Name", zinc_id)
-        mol.SetProp("Energy_Ha",     f"{row['Internal_E(0K)']:.8f}")
-        mol.SetProp("FormalCharge",  str(compute_formal_charge(charges)))
-        mol.SetProp("Multiplicity",  "1")
-        mol.SetProp("SMILES",        raw_smi)
-        mol.SetProp("SourceID",      zinc_id)
-        mol.SetProp("HOMO_Ha",       f"{row['HOMO']:.6f}")
-        mol.SetProp("LUMO_Ha",       f"{row['LUMO']:.6f}")
-        mol.SetProp("HL_Gap_Ha",     f"{row['HL_gap']:.6f}")
+        mol.SetProp("Energy_Ha", f"{row['Internal_E(0K)']:.8f}")
+        mol.SetProp("FormalCharge", str(compute_formal_charge(charges)))
+        mol.SetProp("Multiplicity", "1")
+        mol.SetProp("SMILES", raw_smi)
+        mol.SetProp("SourceID", zinc_id)
+        mol.SetProp("HOMO_Ha", f"{row['HOMO']:.6f}")
+        mol.SetProp("LUMO_Ha", f"{row['LUMO']:.6f}")
+        mol.SetProp("HL_Gap_Ha", f"{row['HL_gap']:.6f}")
         mol.SetProp("PartialCharges", " ".join(f"{q:.6f}" for q in charges))
 
         writer.write(mol)
@@ -216,7 +219,7 @@ def main():
     writer.close()
 
     # -- Report ----------------------------------------------------------
-    print(f"\nDone.")
+    print("\nDone.")
     print(f"  Written:    {written}")
     print(f"  Skipped:    {skipped}")
     print(f"  Output:     {out_sdf}")

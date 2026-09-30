@@ -38,16 +38,15 @@ Usage:
     python3 02_energy_prefilter.py --skip-energy-positive-check
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 import numpy as np
-
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
 
@@ -57,7 +56,7 @@ def _passthrough(input_dir, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     for fname in sorted(os.listdir(input_dir)):
         if fname.endswith(".parquet"):
-            in_path  = os.path.join(input_dir, fname)
+            in_path = os.path.join(input_dir, fname)
             out_path = os.path.join(output_dir, fname)
             rows = read_batch(in_path)
             for row in rows:
@@ -66,11 +65,13 @@ def _passthrough(input_dir, output_dir):
             print(f"  {fname} → {out_path} ({len(rows)} mols, skipped)")
     print("Passthrough complete.")
 
+
 # Default atom types for the OLS regression.
 ATOM_TYPES = ["C", "H", "N", "O", "S", "F", "Cl", "Br", "P", "I"]
 
 
 # -- Atom counting --------------------------------------------------------
+
 
 def _count_atoms_from_block(mol_block, atom_types):
     """Count atoms per element from mol_block atom lines (no RDKit).
@@ -106,6 +107,7 @@ def _count_atoms_from_block(mol_block, atom_types):
 
 
 # -- OLS fitting ----------------------------------------------------------
+
 
 def fit_ols(X, y):
     """Fit OLS  E_total ~ sum(n_i * e_i)  (no intercept).
@@ -144,34 +146,67 @@ def fit_ols(X, y):
 
 # -- Main ----------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 2 — Energy outlier detection (OLS atom-type)."
     )
-    p.add_argument("-i", "--input-dir", type=str, default="batches",
-                   help="Directory of Parquet batch files (default: batches/).")
-    p.add_argument("-o", "--output-dir", type=str, default="filtered_batches",
-                   help="Output directory for Parquet batches (default: filtered_batches/).")
-    p.add_argument("--rejects-dir", type=str, default="rejects/02_energy_prefilter",
-                   help="Rejected molecules SDF directory (default: rejects/02_energy_prefilter/).")
-    p.add_argument("--threshold", type=float, default=3.5,
-                   help="MAD-based robust z-score threshold (default: 3.5).")
-    p.add_argument("--skip-energy-positive-check", action="store_true",
-                   default=False,
-                   help="Skip the energy>0 sanity check (default: check is on).")
-    p.add_argument("--atom-types", type=str, nargs="*",
-                   default=ATOM_TYPES,
-                   help="Atom types for OLS regression (default: C H N O S F Cl Br P I).")
-    p.add_argument("--skip", action="store_true",
-                   help="Skip energy prefilter entirely (pass-through all molecules).")
-    p.add_argument("--force-keep-rejected", action="store_true",
-                   help="Keep flagged molecules in output (default: drop them).")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=str,
+        default="batches",
+        help="Directory of Parquet batch files (default: batches/).",
+    )
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="filtered_batches",
+        help="Output directory for Parquet batches (default: filtered_batches/).",
+    )
+    p.add_argument(
+        "--rejects-dir",
+        type=str,
+        default="rejects/02_energy_prefilter",
+        help="Rejected molecules SDF directory (default: rejects/02_energy_prefilter/).",
+    )
+    p.add_argument(
+        "--threshold",
+        type=float,
+        default=3.5,
+        help="MAD-based robust z-score threshold (default: 3.5).",
+    )
+    p.add_argument(
+        "--skip-energy-positive-check",
+        action="store_true",
+        default=False,
+        help="Skip the energy>0 sanity check (default: check is on).",
+    )
+    p.add_argument(
+        "--atom-types",
+        type=str,
+        nargs="*",
+        default=ATOM_TYPES,
+        help="Atom types for OLS regression (default: C H N O S F Cl Br P I).",
+    )
+    p.add_argument(
+        "--skip",
+        action="store_true",
+        help="Skip energy prefilter entirely (pass-through all molecules).",
+    )
+    p.add_argument(
+        "--force-keep-rejected",
+        action="store_true",
+        help="Keep flagged molecules in output (default: drop them).",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     from lib.provenance import record_run
+
     record_run(args.output_dir, "02_energy_prefilter")
 
     if args.skip:
@@ -181,9 +216,7 @@ def main():
     atom_types = args.atom_types
 
     # -- Discover batches -------------------------------------------------
-    batch_files = sorted(
-        f for f in os.listdir(args.input_dir) if f.endswith(".parquet")
-    )
+    batch_files = sorted(f for f in os.listdir(args.input_dir) if f.endswith(".parquet"))
     if not batch_files:
         print(f"No .parquet files found in {args.input_dir}")
         sys.exit(1)
@@ -194,7 +227,7 @@ def main():
     total = 0
     n_corrupt = 0
     n_energy_positive = 0
-    fit_counts = []     # per-element counts for the OLS fit subset
+    fit_counts = []  # per-element counts for the OLS fit subset
     fit_energies = []
 
     for fname in batch_files:
@@ -219,8 +252,10 @@ def main():
 
     if not args.skip_energy_positive_check:
         if n_energy_positive:
-            print(f"  {n_energy_positive} energy-positive molecules flagged "
-                  f"(energy_ha > 0, excluded from OLS fit)")
+            print(
+                f"  {n_energy_positive} energy-positive molecules flagged "
+                f"(energy_ha > 0, excluded from OLS fit)"
+            )
     else:
         print("  Energy>0 check skipped (--skip-energy-positive-check)")
 
@@ -235,7 +270,9 @@ def main():
     y = np.array(fit_energies, dtype=np.float64)
 
     # -- Fit --------------------------------------------------------------
-    print(f"\nFitting OLS  E~sum(n_i*e_i)  ({len(atom_types)} atom types: {', '.join(atom_types)}) ...")
+    print(
+        f"\nFitting OLS  E~sum(n_i*e_i)  ({len(atom_types)} atom types: {', '.join(atom_types)}) ..."
+    )
     beta, residuals, z = fit_ols(X, y)
 
     print("  Fitted atomic energies (Ha):")
@@ -257,7 +294,7 @@ def main():
     fit_idx = 0
 
     for fname in batch_files:
-        in_path  = os.path.join(args.input_dir, fname)
+        in_path = os.path.join(args.input_dir, fname)
         out_path = os.path.join(args.output_dir, fname)
         batch = read_batch(in_path)
         out_rows = []
@@ -294,13 +331,12 @@ def main():
     # -- Reject SDF -------------------------------------------------------
     if rejected_rows:
         reject_path = os.path.join(args.rejects_dir, "energy_flagged.sdf")
-        write_reject_sdf(reject_path, rejected_rows,
-                         reject_reason="energy_filter")
+        write_reject_sdf(reject_path, rejected_rows, reject_reason="energy_filter")
         print(f"\n  {len(rejected_rows)} rejected → {reject_path}")
 
     # -- Report ------------------------------------------------------------
     n_total_rejected = n_energy_positive_flag + n_flagged_ols
-    print(f"\nReport")
+    print("\nReport")
     print(f"  Total:              {total}")
     print(f"  OK:                 {n_ok}")
     print(f"  Flagged (OLS):      {n_flagged_ols}")
@@ -318,8 +354,10 @@ def main():
         sentinel = os.path.join(args.rejects_dir, ".FLAGGED")
         os.makedirs(args.rejects_dir, exist_ok=True)
         with open(sentinel, "w") as f:
-            f.write(f"{n_total_rejected} molecules rejected "
-                    f"(ols={n_flagged_ols}, energy_positive={n_energy_positive_flag})\n")
+            f.write(
+                f"{n_total_rejected} molecules rejected "
+                f"(ols={n_flagged_ols}, energy_positive={n_energy_positive_flag})\n"
+            )
 
 
 if __name__ == "__main__":

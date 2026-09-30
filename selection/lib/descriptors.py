@@ -20,19 +20,22 @@ Conventions
 
 import numpy as np
 from rdkit import Chem
-from rdkit.Chem import Descriptors, rdMolDescriptors
-from rdkit.Chem.Scaffolds import MurckoScaffold
-from rdkit.Chem import rdFingerprintGenerator
+from rdkit.Chem import Descriptors, rdFingerprintGenerator, rdMolDescriptors
 from rdkit.Chem.rdFingerprintGenerator import AdditionalOutput
+from rdkit.Chem.Scaffolds import MurckoScaffold
 
 RADIUS = 2
 NBITS = 2048
 
 _MORGAN_GEN = rdFingerprintGenerator.GetMorganGenerator(
-    radius=RADIUS, fpSize=NBITS, includeChirality=True,
+    radius=RADIUS,
+    fpSize=NBITS,
+    includeChirality=True,
 )
 _ENV_GEN = rdFingerprintGenerator.GetMorganGenerator(
-    radius=RADIUS, fpSize=NBITS, includeChirality=False,
+    radius=RADIUS,
+    fpSize=NBITS,
+    includeChirality=False,
 )
 
 _BOND_ORDER = {

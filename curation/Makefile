@@ -28,10 +28,10 @@ INPUT_NAME := qm40_input
 # Paths
 SCRIPTS  := .
 ifeq ($(MODE),full)
-BASE      := ../AIM4ML-workspace
+BASE      := ../../AIM4ML-workspace
 INPUT_SDF := $(BASE)/$(INPUT_NAME).sdf
 else
-BASE      := ../AIM4ML-workspace/samples
+BASE      := ../../AIM4ML-workspace/samples
 INPUT_SDF := $(BASE)/$(INPUT_NAME).sdf
 endif
 

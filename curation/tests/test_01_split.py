@@ -8,7 +8,7 @@ import pytest
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "src", "curation", "01_split.py",
+    "..", "01_split.py",
 )
 
 

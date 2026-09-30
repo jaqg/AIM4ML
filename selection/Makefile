@@ -11,7 +11,7 @@ SELDIR := .
 
 # Override at the command line, e.g.:
 #   make descriptors CURATED=/datos_pool/mldata1/QMdatasets/QM40/AIM4ML/08-conformer OUT=out
-CURATED := ../AIM4ML-workspace/samples/conformer_batches
+CURATED := ../../AIM4ML-workspace/samples/conformer_batches
 OUT     := out
 N       := 10000
 # Extra flags passed to 03_select.py (floor/depth/diversity params).

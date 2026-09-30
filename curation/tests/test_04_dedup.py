@@ -12,7 +12,7 @@ from rdkit import Chem
 
 _SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "src", "curation", "04_dedup.py",
+    "..", "04_dedup.py",
 )
 if os.path.dirname(_SCRIPT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_SCRIPT))

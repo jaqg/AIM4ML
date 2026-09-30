@@ -13,11 +13,11 @@ from rdkit.Chem import SDWriter, AllChem
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "src", "curation", "03_filter.py",
+    "..", "03_filter.py",
 )
 SPLIT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "src", "curation", "01_split.py",
+    "..", "01_split.py",
 )
 
 _SCRIPTS_DIR = os.path.dirname(SCRIPT)

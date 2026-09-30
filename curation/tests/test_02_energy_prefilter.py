@@ -8,7 +8,7 @@ import pytest
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "src", "curation", "02_energy_prefilter.py",
+    "..", "02_energy_prefilter.py",
 )
 
 

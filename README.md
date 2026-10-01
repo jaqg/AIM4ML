@@ -27,7 +27,7 @@ Sample data paths in Makefiles assume workspace location:
 ## Testing
 
 ```bash
-# From repo root (all 181 tests: 123 curation + 58 selection)
+# From repo root (237 tests: 179 curation + 58 selection)
 pytest curation/tests/ selection/tests/ -v
 
 # Or per package
@@ -36,6 +36,13 @@ pytest selection/tests/ -v
 make -C curation test
 make -C selection test
 ```
+
+Coverage: **88%** (pytest-cov; subprocess measurement via
+`COVERAGE_PROCESS_START=$PWD/.coveragerc` — the `.pth` hook lives in the
+venv, opt-in per run). Core stages 91–99%; known skip: `07_reorder.py`
+~22% — its antechamber call paths need the AMBER binary, cluster-only
+(tested there via real runs; local tests cover the pure-Python parts).
+Legacy QM40 one-off converters are untested by design.
 
 ## Development
 

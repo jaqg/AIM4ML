@@ -41,6 +41,13 @@ make -C selection test
 
 Lint/format: `ruff check .` + `ruff format --check .` (config in `ruff.toml`, line-length 100).
 
+Type check (libs only; the two `lib` packages must be checked separately — same module name):
+
+```bash
+MYPYPATH=curation  .venv/bin/mypy -p lib
+MYPYPATH=selection .venv/bin/mypy -p lib
+```
+
 Optional git hook (ruff on staged files before every commit; full tests not run — run pytest before pushing):
 
 ```bash

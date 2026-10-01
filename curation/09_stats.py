@@ -55,6 +55,8 @@ def compute_descriptors(smiles):
     that triggers AtomValenceException. Descriptors compute correctly
     on unsanitized mols.
     """
+    if not smiles:
+        return None, None, None, None, None
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
     if mol is None:
         return None, None, None, None, None
@@ -356,7 +358,7 @@ def main():
     print(f"\n  Stats → {csv_path}")
 
     # -- Histograms -------------------------------------------------------
-    _plot_hist(nat_list, "Number of atoms (NAT)", plots_dir, "hist_nat.pdf", valid_only=True)
+    _plot_hist(nat_list, "Number of atoms (NAT)", plots_dir, "hist_nat.pdf")
     _plot_hist(
         [mw for mw in mol_wt_list if mw is not None],
         "Molecular weight (Da)",
@@ -408,8 +410,10 @@ def main():
             print(f"  T=1.0 pairs:       {n_t1}")
 
 
-def _plot_hist(data, xlabel, plots_dir, filename, valid_only=False):
-    """Save a histogram to plots_dir/filename."""
+def _plot_hist(data, xlabel, plots_dir, filename):
+    """Save a histogram to plots_dir/filename. Drops None/NaN entries
+    (failed descriptors, missing energies)."""
+    data = [d for d in data if d is not None and not (isinstance(d, float) and np.isnan(d))]
     if not data:
         return
     plt.figure(figsize=(6, 4))

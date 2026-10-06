@@ -1,6 +1,7 @@
 """test_schema.py — Unit tests for lib/schema.py."""
 
-from lib.schema import COMPUTED_TAGS, OPTIONAL_TAGS, RECOMMENDED_TAGS, REQUIRED_TAGS, compound_id
+from curation.graph.schema import compound_id
+from lib.schema import COMPUTED_TAGS, OPTIONAL_TAGS, RECOMMENDED_TAGS, REQUIRED_TAGS
 
 
 class TestCompoundId:

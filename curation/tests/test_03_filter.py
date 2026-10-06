@@ -125,8 +125,9 @@ class TestFilter:
             )
             run_filter(batches_dir, out_dir, extra_args=["--force-keep-rejected"])
 
-            from lib.parquet_io import read_batch
             from rdkit import Chem
+
+            from lib.parquet_io import read_batch
 
             files = sorted(f for f in os.listdir(out_dir) if f.endswith(".parquet"))
             if not files:

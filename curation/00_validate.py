@@ -27,13 +27,14 @@ import sys
 
 # Ensure the lib/ directory is importable when the script is run from
 # anywhere relative to the scripts folder.
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from rdkit.Chem import SDWriter
 
 from lib.schema import OPTIONAL_TAGS, RECOMMENDED_TAGS, REQUIRED_TAGS
 from lib.sdf_io import read_sdf, validate_tags
-from rdkit.Chem import SDWriter
 
 # -- Main ----------------------------------------------------------------
 

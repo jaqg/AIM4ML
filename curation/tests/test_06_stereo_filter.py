@@ -28,8 +28,8 @@ _SCRIPT = os.path.join(
 if os.path.dirname(_SCRIPT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_SCRIPT))
 
+from curation.graph.schema import compound_id
 from lib.parquet_io import read_batch, write_batch
-from lib.schema import compound_id
 
 # -----------------------------------------------------------------------
 # Helpers

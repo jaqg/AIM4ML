@@ -8,10 +8,10 @@ import tempfile
 
 import pytest
 
-# Make lib/ importable from the tests/ directory
-_SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
+# Make repo-root lib/ importable from the tests/ directory
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from rdkit import Chem
 from rdkit.Chem import SDWriter

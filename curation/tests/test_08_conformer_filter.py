@@ -22,9 +22,10 @@ if os.path.dirname(_SCRIPT) not in sys.path:
 
 import importlib
 
-from lib.parquet_io import read_batch, write_batch
-from lib.schema import compound_id
 from rdkit import Chem
+
+from curation.graph.schema import compound_id
+from lib.parquet_io import read_batch, write_batch
 
 _conf = importlib.import_module("08_conformer_filter")
 

@@ -2,6 +2,13 @@
 
 Reproducible curation pipeline for quantum-chemistry molecular datasets. Converts raw SDF input through 11 validation, filtering, deduplication, and formatting stages into extended XYZ trajectory files ready for machine-learned interatomic potential (MLIP) training with MACE, NequIP, SchNetPack, and similar frameworks.
 
+The pipeline is organized as identity-model *tracks* (D70, class-conditional
+dispatch): **graph** (Lewis/SMILES world — CompoundID = MD5 of canonical
+SMILES, D62) and **realspace** (geometry-key world — placeholder, IQARIS
+application, not yet implemented). The track is declared at intake by the
+converter/driver; shared machinery lives in top-level `lib/`, genuinely
+shared stages in `curation/common/`. This README documents the graph track.
+
 ## Pipeline Architecture
 
 ```
@@ -24,6 +31,26 @@ input.sdf
 extxyz/*.xyz   +   stats/stats_summary.csv   +   stats/plots/
 ```
 
+## Stage Table (graph track)
+
+| Stage | Script | Track | Purpose |
+|-------|--------|-------|---------|
+| 0 | `curation/graph/00_validate.py` | graph | contract check (required tags, types) |
+| 1 | `curation/common/01_split.py` | common | SDF → Parquet batches |
+| 2 | `curation/graph/02_energy_prefilter.py` | graph | OLS atom-type outlier detection (MAD z‑score) |
+| 3 | `curation/graph/03_filter.py` | graph | neutral / non‑zwitterion / closed‑shell |
+| 4 | `curation/graph/04_dedup.py` | graph | canonical SMILES + CompoundID + conformer dedup |
+| 5 | `curation/graph/05_validate.py` | graph | integrity cross‑checks |
+| 6 | `curation/graph/06_stereo_filter.py` | graph | enantiomer removal |
+| 7 | `curation/graph/07_reorder.py` | graph | canonical atom ordering (RDKit CanonicalRankAtoms) |
+| 8 | `curation/graph/08_conformer_filter.py` | graph | conformer RMSD pruning |
+| 9 | `curation/graph/09_stats.py` | graph | descriptors + histograms + Tanimoto diversity |
+| 10 | `curation/common/10_extxyz.py` | common | extended XYZ trajectory files (MLIP‑ready) |
+
+Realspace-track stages (future): `curation/realspace/` — geometry-key
+identity, ingest, dedup. Stage output directory names are unchanged by the
+track split.
+
 ## Dependencies
 
 - Python ≥ 3.10
@@ -41,7 +68,14 @@ conda activate aim4ml
 
 ## Modular Usage
 
-Each stage is a standalone script — run independently, swap backends, tune thresholds, or repurpose for different datasets without touching the Makefile.
+Each stage is a standalone script — run independently, swap backends, tune thresholds, or repurpose for different datasets without touching the drivers.
+
+**Invocation convention (pick one, be consistent):** stages are invoked by
+script path from the repo root, e.g. `python curation/graph/03_filter.py`.
+Each stage bootstraps the repo root onto `sys.path` itself, so this works
+from any working directory. Full-pipeline runs go through the drivers
+(`make qm40` / `python drivers/qm40_curation.py`), which call the same
+stages in-process.
 
 ### Input/Output conventions
 
@@ -56,9 +90,9 @@ All stages 2–10 use Parquet batches internally (zstd‑compressed). Stages 0�
 
 ### Stage-by-stage flags
 
-#### Stage 0 — `00_validate.py`
+#### Stage 0 — `graph/00_validate.py`
 ```bash
-python3 00_validate.py input.sdf [-o output.sdf] [--rejects-dir rejects/00_validate] [--lenient]
+python3 curation/graph/00_validate.py input.sdf [-o output.sdf] [--rejects-dir rejects/00_validate] [--lenient]
 ```
 | Flag | Effect |
 |------|--------|
@@ -66,17 +100,17 @@ python3 00_validate.py input.sdf [-o output.sdf] [--rejects-dir rejects/00_valid
 | `-o` | Clean output SDF (default: `<input>_valid.sdf`) |
 | `--lenient` | Warn instead of rejecting on missing required tags |
 
-#### Stage 1 — `01_split.py`
+#### Stage 1 — `common/01_split.py`
 ```bash
-python3 01_split.py input.sdf [-o batches/] [-b 5000]
+python3 curation/common/01_split.py input.sdf [-o batches/] [-b 5000]
 ```
 | Flag | Effect |
 |------|--------|
 | `-b` / `--batch-size` | Molecules per Parquet batch (default: 5000) |
 
-#### Stage 2 — `02_energy_prefilter.py`
+#### Stage 2 — `graph/02_energy_prefilter.py`
 ```bash
-python3 02_energy_prefilter.py -i batches/ -o filtered_batches/ \
+python3 curation/graph/02_energy_prefilter.py -i batches/ -o filtered_batches/ \
     [--threshold 3.5] [--atom-types H C N O F S Cl Br] [--skip] [--force-keep-rejected]
 ```
 | Flag | Effect |
@@ -85,9 +119,9 @@ python3 02_energy_prefilter.py -i batches/ -o filtered_batches/ \
 | `--atom-types` | Atom symbols to include in the OLS model (default: H,C,N,O,F,S,Cl,Br) |
 | `--skip` | Pass‑through all molecules (no energy filtering) |
 
-#### Stage 3 — `03_filter.py`
+#### Stage 3 — `graph/03_filter.py`
 ```bash
-python3 03_filter.py -i filtered_batches/ -o curated_batches/ \
+python3 curation/graph/03_filter.py -i filtered_batches/ -o curated_batches/ \
     [--preset neutral_closed_shell] [--allowed-elements C,H,N,O,F,S,Cl,Br] \
     [--min-heavy 4] [--max-heavy 200] [--min-fragments N] [--max-fragments N] \
     [--force-keep-rejected]
@@ -98,9 +132,9 @@ python3 03_filter.py -i filtered_batches/ -o curated_batches/ \
 | `--allowed-elements` | Comma‑separated allowed atomic symbols |
 | `--min-heavy` | Minimum number of heavy (non‑H) atoms |
 | `--max-heavy` | Maximum number of heavy (non‑H) atoms |
-| `--min-fragments` / `--max-fragments` | Optional fragment-count gate (CLI opt-in; the Makefile no longer sets it) |
+| `--min-fragments` / `--max-fragments` | Optional fragment-count gate (CLI opt-in; the drivers no longer set it) |
 
-**Multi-fragment complexes are KEPT and TAGGED.** The Makefile default run no
+**Multi-fragment complexes are KEPT and TAGGED.** The driver default run no
 longer passes `--max-fragments 1`; salts, solvates and adducts flow through
 curation. Every kept row — including monomers — carries four metadata columns,
 grouped next to `n_fragments` in the Parquet schema:
@@ -127,29 +161,29 @@ charge-separated species — salts are then rejected by the net-charge check.
 Converter output always carries SMILES tags (D62), so this affects only
 tagless legacy inputs.
 
-#### Stage 4 — `04_dedup.py`
+#### Stage 4 — `graph/04_dedup.py`
 ```bash
-python3 04_dedup.py -i curated_batches/ -o deduped_batches/ [--rejects-dir rejects/04_dedup]
+python3 curation/graph/04_dedup.py -i curated_batches/ -o deduped_batches/ [--rejects-dir rejects/04_dedup]
 ```
 Adds `CanonicalSMILES`, `CompoundID` (MD5), `Formula`, and `conformer_duplicate` flag. Duplicate conformers (same CompoundID, same energy) are tagged but kept — they're pruned later by Stage 8.
 
-#### Stage 5 — `05_validate.py`
+#### Stage 5 — `graph/05_validate.py`
 ```bash
-python3 05_validate.py -i deduped_batches/ [--rejects-dir rejects/05_validate] [--skip]
+python3 curation/graph/05_validate.py -i deduped_batches/ [--rejects-dir rejects/05_validate] [--skip]
 ```
 | Flag | Effect |
 |------|--------|
 | `--skip` | Skip integrity checks entirely |
 
-#### Stage 6 — `06_stereo_filter.py`
+#### Stage 6 — `graph/06_stereo_filter.py`
 ```bash
-python3 06_stereo_filter.py -i deduped_batches/ -o stereo_batches/ [--force-keep-rejected]
+python3 curation/graph/06_stereo_filter.py -i deduped_batches/ -o stereo_batches/ [--force-keep-rejected]
 ```
 Removes one enantiomer from each racemic pair. Keeps the first canonical SMILES. Molecules with multiple fragments (complexes) are tagged `complex` and passed through.
 
-#### Stage 7 — `07_reorder.py`
+#### Stage 7 — `graph/07_reorder.py`
 ```bash
-python3 07_reorder.py -i stereo_batches/ -o reordered_batches/ \
+python3 curation/graph/07_reorder.py -i stereo_batches/ -o reordered_batches/ \
     [--rejects-dir rejects/07_reorder] [--workers 4] [--force-keep-rejected]
 ```
 | Flag | Effect |
@@ -157,18 +191,18 @@ python3 07_reorder.py -i stereo_batches/ -o reordered_batches/ \
 | `--workers` | Parallel workers for row reordering (default 1) |
 | `--force-keep-rejected` | Keep molecules that fail reordering (default: drop them to rejects SDF) |
 
-#### Stage 8 — `08_conformer_filter.py`
+#### Stage 8 — `graph/08_conformer_filter.py`
 ```bash
-python3 08_conformer_filter.py -i reordered_batches/ -o conformer_batches/ \
+python3 curation/graph/08_conformer_filter.py -i reordered_batches/ -o conformer_batches/ \
     [--rmsd-threshold 1.0] [--force-keep-rejected]
 ```
 | Flag | Effect |
 |------|--------|
 | `--rmsd-threshold` | Heavy‑atom Kabsch RMSD cutoff in Å (default: 1.0). Lower = more conformers kept |
 
-#### Stage 9 — `09_stats.py`
+#### Stage 9 — `graph/09_stats.py`
 ```bash
-python3 09_stats.py -i conformer_batches/ -o stats/ \
+python3 curation/graph/09_stats.py -i conformer_batches/ -o stats/ \
     [--tanimoto] [--workers 8] [--exclude COLUMN=VALUE]
 ```
 | Flag | Effect |
@@ -177,9 +211,9 @@ python3 09_stats.py -i conformer_batches/ -o stats/ \
 | `--workers` | CPU workers for Tanimoto |
 | `--exclude` | Drop rows matching `COLUMN=VALUE` before stats (repeatable) |
 
-#### Stage 10 — `10_extxyz.py`
+#### Stage 10 — `common/10_extxyz.py`
 ```bash
-python3 10_extxyz.py -i conformer_batches/ -o extxyz/ \
+python3 curation/common/10_extxyz.py -i conformer_batches/ -o extxyz/ \
     [--family QM40] [--exclude COLUMN=VALUE]
 ```
 | Flag | Effect |
@@ -203,47 +237,51 @@ Prints curation funnel (per‑stage drop counts), NAT/MolWt/TPSA/Energy descript
 
 ```bash
 # Validate only (stage 0)
-python3 00_validate.py my_dataset.sdf -o my_dataset_valid.sdf
+python3 curation/graph/00_validate.py my_dataset.sdf -o my_dataset_valid.sdf
 
 # Chemically filter with custom element set (stage 3)
-python3 03_filter.py -i batches/ -o curated/ --preset neutral \
+python3 curation/graph/03_filter.py -i batches/ -o curated/ --preset neutral \
     --allowed-elements C,H,O,N --min-heavy 6
 
 # Tighter conformer pruning (stage 8)
-python3 08_conformer_filter.py -i reordered/ -o conformers/ --rmsd-threshold 0.5
+python3 curation/graph/08_conformer_filter.py -i reordered/ -o conformers/ --rmsd-threshold 0.5
 
 # Generate extXYZ with dataset name override (stage 10)
-python3 10_extxyz.py -i conformers/ -o extxyz/ --family MyDataset
+python3 curation/common/10_extxyz.py -i conformers/ -o extxyz/ --family MyDataset
 ```
 
 ### Adopting for a new dataset
 
-1. Prepare an SDF with the [required tags](#input-sdf). Write a converter script (see `convert_qm40.py` as a template) if your data is in another format.
-2. Run `00_validate.py` to check the contract.
+1. Prepare an SDF with the [required tags](#input-sdf). Write a converter script (see `converters/convert_qm40.py` as a template) if your data is in another format.
+2. Run `curation/graph/00_validate.py` to check the contract.
 3. Adjust `--allowed-elements`, `--min-heavy`, `--max-heavy` in Stage 3 for your chemistry.
 4. Set `--family` in Stage 10 for correct extXYZ metadata.
 5. Optionally skip Stage 2 (`--skip`) if your dataset has no energy column or you don't trust the OLS model for your atom types.
+6. Add a thin driver under `drivers/` (copy `qm40_curation.py`; set family + input name) so the full chain is one command.
 
 ## Quick Start
 
 ```bash
-# Place your input SDF in samples/ (or symlink it)
-cd scripts/
+# From repo root — full graph-track chain via the per-source driver
+cd curation
+make sample                              # qm40 driver, sample data
+make qm40 ARGS="--mode full --workers 40"
+make qmugs                               # QMugs driver
 
-# Run full pipeline on sample data
-make MODE=sample WORKERS=8
+# Or call the driver directly
+python drivers/qm40_curation.py --mode sample --workers 8
+python drivers/qm40_curation.py --dry-run    # print stage chain, run nothing
 
-# Run full pipeline on complete dataset
-make MODE=full WORKERS=40
-
-# Individual stages
-make stage0    # validate input
-make stage3    # chemical filter only
-make extxyz    # generate extXYZ files
+# Per-stage pass-throughs (debugging; no stamps — every run executes)
+make stage0 ARGS="../../AIM4ML-workspace/samples/qm40_input.sdf -o /tmp/valid.sdf"
+make stage3 ARGS="-i batches/ -o curated/ --workers 4"
 
 # Run test suite
 make test
 ```
+
+No stamp files: the driver runs the full chain each invocation; every stage
+records its own provenance into `<BASE>/provenance.json` (`lib/provenance.py`).
 
 ## Data Contract
 
@@ -275,13 +313,14 @@ H   1.234567  0.345678  0.456789
 
 Metadata keys: `SourceID`, `CompoundID`, `Formula`, `nat`, `CNSO`, `chrg`, `mult`, `e` (Energy_Ha), `smiles` (canonical).
 
-## QM40-Specific Scripts
+## Source Converters & Legacy Scripts
 
-Three standalone scripts handle the QM40 dataset as a worked example:
+- `converters/convert_qm40.py` — converts raw QM40 CSVs (main, xyz, bond) to pipeline-standard SDF
+- `converters/convert_qmugs.py` — converts QMugs structures to pipeline-standard SDF
 
-- `convert_qm40.py` — converts raw QM40 CSVs (main, xyz, bond) to pipeline-standard SDF
-- `filter_qm40.py` — Phase‑1 curation filter (neutral, non‑zwitterion, closed‑shell)
-- `energy_prefilter_qm40.py` — atom‑type OLS energy outlier detection
+Untested QM40-era one-offs (`filter_qm40.py`, `energy_prefilter_qm40.py`)
+live outside the repo in `AIM4ML-workspace/legacy/` — untested by design,
+kept for reference only.
 
 ## Data Preservation
 
@@ -290,30 +329,38 @@ The pipeline is fully reproducible from `input.sdf` alone. All intermediate Parq
 ## Repository Structure
 
 ```
-scripts/
-├── 00_validate.py           # Stage 0: input contract check
-├── 01_split.py              # Stage 1: SDF → Parquet
-├── 02_energy_prefilter.py   # Stage 2: energy outlier detection
-├── 03_filter.py             # Stage 3: chemical filter
-├── 04_dedup.py               # Stage 4: canonicalize + dedup
-├── 05_validate.py            # Stage 5: integrity checks
-├── 06_stereo_filter.py       # Stage 6: enantiomer removal
-├── 07_reorder.py             # Stage 7: atom reordering
-├── 08_conformer_filter.py    # Stage 8: conformer pruning
-├── 09_stats.py               # Stage 9: descriptors + plots
-├── 10_extxyz.py              # Stage 10: extXYZ generation
-├── convert_qm40.py           # QM40 CSV → SDF converter
-├── filter_qm40.py            # QM40 curation filter
-├── energy_prefilter_qm40.py  # QM40 energy outlier script
-├── lib/                      # Shared library
-│   ├── schema.py             #   tag definitions
+AIM4ML/
+├── lib/                      # identity-neutral shared machinery (D70)
+│   ├── schema.py             #   tag + Parquet column registries
 │   ├── sdf_io.py             #   SDF read/write helpers
-│   └── parquet_io.py         #   Parquet batch I/O
-├── tools/                    # Utility scripts (reporting, inspection)
-├── Makefile                  # Full pipeline orchestration
-├── DATA_PRESERVATION.md      # Archival policy
-└── README.md                 # This file
+│   ├── parquet_io.py         #   Parquet batch I/O
+│   ├── provenance.py         #   per-stage run audit log
+│   ├── parallel.py           #   multiprocessing map
+│   └── rdkit_version.py      #   RDKit version gate
+├── converters/               # raw dataset → pipeline-standard SDF
+│   ├── convert_qm40.py
+│   └── convert_qmugs.py
+├── drivers/                  # per-source recipe scripts (track + flags)
+│   ├── chain.py              #   shared stage-chain runner
+│   ├── qm40_curation.py
+│   └── qmugs_curation.py
+├── curation/
+│   ├── graph/                # graph-track stages (Lewis/SMILES identity)
+│   │   ├── 00_validate.py … 09_stats.py
+│   │   └── schema.py         #   graph identity (CompoundID = MD5 SMILES)
+│   ├── common/               # shared stages (identity-neutral)
+│   │   ├── 01_split.py
+│   │   └── 10_extxyz.py
+│   ├── realspace/            # geometry-key track placeholder (IQARIS)
+│   ├── tests/                # pytest suite
+│   ├── tools/                # utility scripts (reporting, inspection)
+│   ├── Makefile              # alias table: qm40 / qmugs / sample / stage0-10
+│   ├── DATA_PRESERVATION.md  # archival policy
+│   └── README.md             # this file
+└── selection/                # selection pipeline (stages + selection/lib)
 ```
+
+Legacy QM40 one-offs: `AIM4ML-workspace/legacy/` (outside the repo).
 
 ## Citation
 

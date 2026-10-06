@@ -40,7 +40,7 @@ selection/
 └── tests/
 ```
 
-Reuses `curation/lib` (`parquet_io.py`, `schema.py`) for curated-Parquet I/O —
+Reuses top-level `lib/` (`parquet_io.py`) for curated-Parquet I/O —
 no duplicated I/O code.
 
 ## Scope filter (01_descriptors.py, D64)

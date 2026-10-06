@@ -103,7 +103,7 @@ def mol_block_to_extxyz(mol_block, row, family="QM40"):
         f"E,{energy},fmax,,Family,{family},"
         f"smiles,{smiles},"
         f"tpsa,{tpsa_val},logp,{logp_val},nrot,{nrot_val},"
-        f"nfrag,1,iconf,{iconf}"
+        f"nfrag,{row.get('n_fragments', 1)},iconf,{iconf}"
     )
 
     # Atom lines

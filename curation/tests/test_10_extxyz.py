@@ -123,6 +123,14 @@ class TestMolBlockToExtxyz:
             assert sym in {"C", "O", "H"}
             float(x), float(y), float(z)  # coordinates parse as floats
 
+    def test_nfrag_reads_n_fragments(self):
+        """nfrag metadata comes from row['n_fragments'] (complexes
+        export nfrag,2); legacy rows without the column default to 1."""
+        row2 = _row("CCO.O", "DIM", n_fragments=2)
+        frame = _extxyz.mol_block_to_extxyz(row2["mol_block"], row2, family="X")
+        meta = _parse_meta(frame.splitlines()[1])
+        assert meta["nfrag"] == "2"
+
     def test_cnso_counts_cnso_elements_only(self):
         """CNSO = count of C+N+S+O atoms: chlorobenzene → 6 (all C);
         acetic acid → 4 (2 C + 2 O)."""

@@ -107,7 +107,7 @@ def _fragment_formulas(mol, frags):
             if a.GetSymbol() == "H":
                 continue  # counted via GetTotalNumHs on heavy atoms
             elems[a.GetSymbol()] += 1
-            hs = a.GetTotalNumHs()
+            hs = a.GetTotalNumHs(includeNeighbors=True)
             if hs:
                 elems["H"] += hs
         parts = []

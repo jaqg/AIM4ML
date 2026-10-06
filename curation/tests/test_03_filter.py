@@ -26,6 +26,7 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 _filter_module = importlib.import_module("03_filter")
 _has_true_zwitterion = _filter_module._has_true_zwitterion
+_compute_fragment_metadata = _filter_module.compute_fragment_metadata
 
 
 def run_filter(input_dir, output_dir, rejects_dir=None, extra_args=None):
@@ -181,8 +182,11 @@ def _write_sdf(path, entries):
     writer.close()
 
 
-def _tags(sid, energy="-500.0"):
-    return {"Energy_Ha": energy, "FormalCharge": "0", "Multiplicity": "1", "SourceID": sid}
+def _tags(sid, energy="-500.0", smiles=None):
+    tags = {"Energy_Ha": energy, "FormalCharge": "0", "Multiplicity": "1", "SourceID": sid}
+    if smiles:
+        tags["SMILES"] = smiles
+    return tags
 
 
 def _run_split_filter(tmp, entries, extra_args, rejects_dir=None):
@@ -373,6 +377,217 @@ class TestComposition:
         assert n_frag == 1
 
 
+def _block_3d(smiles):
+    """3D mol_block with explicit Hs (embedded, seeded)."""
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    AllChem.EmbedMolecule(mol, randomSeed=42)
+    return Chem.MolToMolBlock(mol)
+
+
+def _merged_block():
+    """3D mol_block whose BOND TABLE merges ethanol+water into ONE
+    connected component via a spurious O-O bond (converter H-bond-merge
+    artifact); the SMILES tag still says 'CCO.O'. Fragments embedded
+    separately, water translated +5 A in x so geometry-based
+    reconstruction cannot recover the true two-fragment topology."""
+    etoh = Chem.AddHs(Chem.MolFromSmiles("CCO"))
+    assert AllChem.EmbedMolecule(etoh, randomSeed=42) == 0
+    wat = Chem.AddHs(Chem.MolFromSmiles("O"))
+    assert AllChem.EmbedMolecule(wat, randomSeed=42) == 0
+    b1 = Chem.MolToMolBlock(etoh).splitlines()
+    b2 = Chem.MolToMolBlock(wat).splitlines()
+    na1, nb1 = int(b1[3][:3]), int(b1[3][3:6])
+    na2, nb2 = int(b2[3][:3]), int(b2[3][3:6])
+    o1 = next(a.GetIdx() for a in etoh.GetAtoms() if a.GetSymbol() == "O") + 1
+
+    def shift_x(line):
+        return f"{float(line[0:10]) + 5.0:10.4f}" + line[10:]
+
+    atoms = b1[4 : 4 + na1] + [shift_x(a) for a in b2[4 : 4 + na2]]
+    bonds = list(b1[4 + na1 : 4 + na1 + nb1])
+    bonds += [
+        f"{int(ln[:3]) + na1:3d}{int(ln[3:6]) + na1:3d}" + ln[6:]
+        for ln in b2[4 + na2 : 4 + na2 + nb2]
+    ]
+    bonds.append(f"{o1:3d}{na1 + 1:3d}  1  0")  # spurious O...O join
+    counts = f"{na1 + na2:3d}{nb1 + nb2 + 1:3d}" + b1[3][6:]
+    tail = b1[4 + na1 + nb1 :]  # M CHG etc. (ethanol neutral)
+    return "\n".join([b1[0], b1[1], b1[2], counts] + atoms + bonds + tail) + "\n"
+
+
+class TestFragmentColumns:
+    """Fragment metadata columns (T2): formulas/SMILES/charges/heavy
+    atoms per fragment. SMILES-tag truth priority (D62 mirror), always
+    populated, empty strings for corrupt rows."""
+
+    def test_monomer_single_item_never_null(self):
+        """Monomer → four single-item strings, never null (nullable ints
+        broke Parquet roundtrips in the past)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, rows = _run_split_filter(tmp, [("CCO", _tags("M1", smiles="CCO"))], [])
+            assert rc == 0
+            row = rows[0]
+            assert row["filter_status"] == "ok"
+            assert row["fragment_formulas"] == "C2H6O"
+            assert row["fragment_smiles"] == "CCO"
+            assert row["fragment_charges"] == "0"
+            assert row["fragment_heavy_atoms"] == "3"
+
+    def test_salt_kept_no_flags(self):
+        """Salt, no fragment flags → KEPT; charges '1;-1' (handoff T4).
+        SMILES tag mirrors converter output (D62): without it the
+        geometry fallback fabricates charges (charge=+2) and the row is
+        rejected by the net-charge check — pre-existing behavior."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, rows = _run_split_filter(
+                tmp, [("[Na+].[Cl-]", _tags("SALT", smiles="[Na+].[Cl-]"))], []
+            )
+            assert rc == 0
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["filter_status"] == "ok"
+            assert row["n_fragments"] == 2
+            assert row["fragment_formulas"] == "Na;Cl"
+            assert row["fragment_smiles"] == "[Na+];[Cl-]"
+            assert row["fragment_charges"] == "1;-1"
+            assert row["fragment_heavy_atoms"] == "1;1"
+
+    def test_solvate_kept_no_flags(self):
+        """Aspirin+water → kept, 2 items per column (T4 verified
+        values: C9H8O4;H2O, heavy 13;1)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, rows = _run_split_filter(
+                tmp,
+                [("CC(=O)Oc1ccccc1C(=O)O.O", _tags("SOLV", smiles="CC(=O)Oc1ccccc1C(=O)O.O"))],
+                [],
+            )
+            assert rc == 0
+            row = rows[0]
+            assert row["filter_status"] == "ok"
+            assert row["n_fragments"] == 2
+            assert row["fragment_formulas"] == "C9H8O4;H2O"
+            assert row["fragment_heavy_atoms"] == "13;1"
+            assert row["fragment_charges"] == "0;0"
+            smis = row["fragment_smiles"].split(";")
+            assert smis == ["CC(=O)Oc1ccccc1C(=O)O", "O"]
+
+    def test_merged_topology_smiles_tag_wins(self):
+        """Merged-topology mol_block (spurious O-O bond) + SMILES tag
+        'CCO.O' → n_fragments=1 (mol_block topology) but fragment
+        columns carry 2 items (SMILES tag truth, D62 priority)."""
+        from lib.parquet_io import read_batch, write_batch
+
+        block = _merged_block()
+        mol = Chem.MolFromMolBlock(block, sanitize=False, removeHs=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            in_dir = os.path.join(tmp, "in")
+            os.makedirs(in_dir)
+            write_batch(
+                os.path.join(in_dir, "b0.parquet"),
+                [
+                    {
+                        "mol_block": block,
+                        "num_atoms": mol.GetNumAtoms(),
+                        "num_bonds": mol.GetNumBonds(),
+                        "SMILES": "CCO.O",
+                        "Energy_Ha": -110.0,
+                        "FormalCharge": 0,
+                        "Multiplicity": 1,
+                        "SourceID": "MERGE",
+                    }
+                ],
+            )
+            out = os.path.join(tmp, "out")
+            rc, _ = run_filter(in_dir, out, extra_args=["--force-keep-rejected"])
+            assert rc == 0
+            rows = read_batch(os.path.join(out, "b0.parquet"))
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["n_fragments"] == 1  # mol_block topology
+            assert row["fragment_formulas"] == "C2H6O;H2O"  # SMILES truth
+            assert row["fragment_smiles"] == "CCO;O"
+            assert row["fragment_charges"] == "0;0"
+            assert row["fragment_heavy_atoms"] == "3;1"
+
+    def test_corrupt_both_sources_empty_strings(self):
+        """Corrupt mol_block + unparseable SMILES → fragment columns
+        empty strings (corrupt convention, never null)."""
+        from lib.parquet_io import read_batch, write_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            in_dir = os.path.join(tmp, "in")
+            os.makedirs(in_dir)
+            write_batch(
+                os.path.join(in_dir, "b0.parquet"),
+                [
+                    {
+                        "mol_block": "garbage",
+                        "num_atoms": 0,
+                        "num_bonds": 0,
+                        "SMILES": "not_a_smiles%%",
+                        "Energy_Ha": -100.0,
+                        "FormalCharge": 0,
+                        "Multiplicity": 1,
+                        "SourceID": "CORRUPT",
+                    }
+                ],
+            )
+            out = os.path.join(tmp, "out")
+            rc, _ = run_filter(in_dir, out, extra_args=["--force-keep-rejected"])
+            assert rc == 0
+            rows = read_batch(os.path.join(out, "b0.parquet"))
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["fragment_formulas"] == ""
+            assert row["fragment_smiles"] == ""
+            assert row["fragment_charges"] == ""
+            assert row["fragment_heavy_atoms"] == ""
+
+    def test_comp_rejected_row_fragment_cols_empty(self):
+        """Comp-fail rows (e.g. --max-fragments 1) drop by default;
+        with --force-keep-rejected they stay with EMPTY fragment
+        columns — metadata computed only after composition passes
+        (rejection reason string carries the formulas instead)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, rows = _run_split_filter(
+                tmp,
+                [("[Na+].[Cl-]", _tags("SALT"))],
+                ["--force-keep-rejected", "--max-fragments", "1"],
+            )
+            assert rc == 0
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["filter_status"] == "rejected"
+            assert row["fragment_formulas"] == ""
+            assert row["fragment_charges"] == ""
+
+
+class TestComputeFragmentMetadata:
+    """Unit tests for compute_fragment_metadata (truth priority)."""
+
+    def test_smiles_tag_priority_over_merged_block(self):
+        md = _compute_fragment_metadata("CCO.O", _merged_block())
+        assert md["fragment_formulas"] == "C2H6O;H2O"
+        assert md["fragment_smiles"] == "CCO;O"
+        assert md["fragment_charges"] == "0;0"
+        assert md["fragment_heavy_atoms"] == "3;1"
+
+    def test_fallback_to_mol_block_when_smiles_missing(self):
+        md = _compute_fragment_metadata(None, _block_3d("CCO.O"))
+        assert md["fragment_formulas"] == "C2H6O;H2O"
+        # explicit-H blocks keep explicit-H fragment SMILES (block truth)
+        assert md["fragment_smiles"] == "[H]OC([H])([H])C([H])([H])[H];[H]O[H]"
+
+    def test_unparseable_everywhere_empty_strings(self):
+        md = _compute_fragment_metadata("not_smiles", "garbage")
+        assert md == {
+            "fragment_formulas": "",
+            "fragment_smiles": "",
+            "fragment_charges": "",
+            "fragment_heavy_atoms": "",
+        }
+
+
 def _write_sdf_3d(path, entries):
     """Write SDF with 3D embedded coords so DetermineBonds works."""
     writer = SDWriter(path)
@@ -443,6 +658,15 @@ class TestZwitterionRule:
 
     def test_amine_oxide_kept(self):
         assert not self._is_zwi("C[N+](C)(C)[O-]")
+
+    def test_salt_cross_fragment_not_zwitterion(self):
+        """Ionic complex (pure-ion fragments, cross-fragment charge
+        separation) is NOT a zwitterion — complexes kept + tagged."""
+        assert not self._is_zwi("[Na+].[Cl-]")
+
+    def test_zwitterion_inside_complex_still_rejected(self):
+        """True zwitterion fragment + spectator ions → still zwitterion."""
+        assert self._is_zwi("[NH3+]CC(=O)[O-].[Na+].[Cl-]")
 
 
 class TestZwitterionIntegration:

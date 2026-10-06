@@ -122,6 +122,56 @@ def _fragment_formulas(mol, frags):
     return formulas
 
 
+def compute_fragment_metadata(smiles, mol_block):
+    """
+    Fragment metadata for one row: formulas, canonical SMILES, formal
+    charges and heavy-atom counts — one ';'-joined item per fragment
+    (single-fragment rows get single-item strings).
+
+    Fragment truth priority (mirrors D62): the SMILES tag is
+    authoritative when it parses; mol_block perception is only the
+    fallback. Converter-topology errors (spurious H-bond merges) must
+    not corrupt fragment identity when a good SMILES tag exists.
+
+    Never null — nullable ints broke Parquet roundtrips in the past
+    (memory/feedback_parquet_null_int_roundtrip.md). Empty strings when
+    neither source parses (corrupt rows keep the existing convention).
+    Fragment order = GetMolFrags order. Atom-index ranges are NOT stored
+    (stale after stage 07 reorder; recomputable via GetMolFrags).
+    """
+    mol = Chem.MolFromSmiles(smiles) if smiles else None
+    if mol is None and mol_block:
+        mol = Chem.MolFromMolBlock(mol_block, sanitize=False, removeHs=False)
+    if mol is None:
+        return {
+            "fragment_formulas": "",
+            "fragment_smiles": "",
+            "fragment_charges": "",
+            "fragment_heavy_atoms": "",
+        }
+
+    frags = Chem.GetMolFrags(mol, asMols=False, sanitizeFrags=False)
+    formulas = _fragment_formulas(mol, frags)
+
+    smiles_list, charges_list, heavy_list = [], [], []
+    for frag in Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=False):
+        f = Chem.Mol(frag)
+        Chem.SanitizeMol(f, catchErrors=True)
+        try:
+            smiles_list.append(Chem.MolToSmiles(f))
+        except Exception:
+            smiles_list.append("")
+        charges_list.append(str(sum(a.GetFormalCharge() for a in f.GetAtoms())))
+        heavy_list.append(str(sum(1 for a in f.GetAtoms() if a.GetAtomicNum() > 1)))
+
+    return {
+        "fragment_formulas": ";".join(formulas),
+        "fragment_smiles": ";".join(smiles_list),
+        "fragment_charges": ";".join(charges_list),
+        "fragment_heavy_atoms": ";".join(heavy_list),
+    }
+
+
 from lib.parallel import parallel_map
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
@@ -151,15 +201,37 @@ PRESETS = {
 
 
 def _has_true_zwitterion(mol):
-    """True zwitterion = formal charge on an atom with no adjacent
-    oppositely-charged atom. Adjacent +/− (nitro [N+]-[O-], N-oxide,
-    sulfoxide, azide) is a polar-bond representation, not a zwitterion."""
+    """True zwitterion = a charged atom with formal charge separation
+    INSIDE its own fragment: non-adjacent +/− on the same connected
+    component. Adjacent +/− (nitro [N+]-[O-], N-oxide, sulfoxide,
+    azide) is a polar-bond representation, not a zwitterion.
+
+    Cross-fragment charge separation (salts, ionic complexes: each
+    fragment a pure ion) is NOT a zwitterion either — complexes are
+    kept and tagged in stage 03; fragment policy lives in selection.
+    A charged atom with no opposite-charge partner anywhere still counts
+    (legacy rule; the net-charge check rejects bare ions upstream)."""
+    frag_of = {}
+    for idx, frag in enumerate(Chem.GetMolFrags(mol, asMols=False, sanitizeFrags=False)):
+        for i in frag:
+            frag_of[i] = idx
+
     for atom in mol.GetAtoms():
         fc = atom.GetFormalCharge()
         if fc == 0:
             continue
-        if not any(n.GetFormalCharge() * fc < 0 for n in atom.GetNeighbors()):
-            return True
+        if any(n.GetFormalCharge() * fc < 0 for n in atom.GetNeighbors()):
+            continue  # adjacent +/−: polar-bond representation
+        i = atom.GetIdx()
+        partner_anywhere = False
+        for other in mol.GetAtoms():
+            if other.GetIdx() == i or other.GetFormalCharge() * fc >= 0:
+                continue
+            partner_anywhere = True
+            if frag_of[other.GetIdx()] == frag_of[i]:
+                return True  # same-fragment non-adjacent separation
+        if not partner_anywhere:
+            return True  # legacy rule: charged atom with no partner
     return False
 
 
@@ -283,6 +355,10 @@ def _process_row_parallel(row):
         result["status"] = "rejected"
         result["reason"] = comp_reason
         return result
+
+    # Fragment metadata for all comp-passing rows (kept rows), even when
+    # the chemical checks below reject/corrupt them.
+    result.update(compute_fragment_metadata(row.get("SMILES"), row.get("mol_block")))
 
     mol, status, reason = process_molecule(row, _CHECKS)
     result["status"] = status
@@ -422,6 +498,13 @@ def main():
 
         for row, result in zip(batch, results):
             row["n_fragments"] = result["n_fragments"]
+            # Fragment columns grouped next to n_fragments in the schema.
+            # Default "" covers comp-fail rows (dropped anyway; kept only
+            # with --force-keep-rejected).
+            row["fragment_formulas"] = result.get("fragment_formulas", "")
+            row["fragment_smiles"] = result.get("fragment_smiles", "")
+            row["fragment_charges"] = result.get("fragment_charges", "")
+            row["fragment_heavy_atoms"] = result.get("fragment_heavy_atoms", "")
             status = result["status"]
             row["filter_status"] = status
             reason = result.get("reason")

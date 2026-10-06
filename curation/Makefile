@@ -115,7 +115,7 @@ $(STAMPS)/03_filter.done: $(STAMPS)/02_energy_prefilter.done
 	@mkdir -p $(CURATED)
 	$(PYTHON) $(SCRIPTS)/03_filter.py -i $(FILTERED) -o $(CURATED) \
 	          --rejects-dir $(REJECTS)/03_filter \
-	          --max-fragments 1 --workers $(WORKERS)
+	          --workers $(WORKERS)
 	touch $@
 
 stage3: $(STAMPS)/03_filter.done

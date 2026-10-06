@@ -15,7 +15,7 @@ input.sdf
 [4] dedup          ── canonical SMILES + CompoundID + conformer dedup
 [5] validate       ── integrity cross‑checks
 [6] stereo_filter  ── enantiomer removal
-[7] reorder        ── canonical atom ordering (RDKit or AMBER backend)
+[7] reorder        ── canonical atom ordering (RDKit CanonicalRankAtoms)
 [8] conformer_filter ── conformer RMSD pruning
 [9] stats          ── descriptors + histograms + Tanimoto diversity
 [10] extxyz        ── extended XYZ trajectory files (MLIP‑ready)
@@ -31,7 +31,6 @@ extxyz/*.xyz   +   stats/stats_summary.csv   +   stats/plots/
 - NumPy, pandas, pyarrow (Parquet I/O)
 - Matplotlib (stats plots)
 - OpenBabel (optional, for legacy QM40 scripts)
-- AMBER antechamber (optional, for AMBER reorder backend)
 
 Install with conda:
 
@@ -122,12 +121,12 @@ Removes one enantiomer from each racemic pair. Keeps the first canonical SMILES.
 #### Stage 7 — `07_reorder.py`
 ```bash
 python3 07_reorder.py -i stereo_batches/ -o reordered_batches/ \
-    [--backend rdkit] [--workers 4] [--force-keep-rejected]
+    [--rejects-dir rejects/07_reorder] [--workers 4] [--force-keep-rejected]
 ```
 | Flag | Effect |
 |------|--------|
-| `--backend` | `rdkit` (CanonicalRankAtoms, default) or `amber` (antechamber) |
-| `--workers` | Parallel workers for AMBER backend (RDKit is single‑threaded) |
+| `--workers` | Parallel workers for row reordering (default 1) |
+| `--force-keep-rejected` | Keep molecules that fail reordering (default: drop them to rejects SDF) |
 
 #### Stage 8 — `08_conformer_filter.py`
 ```bash
@@ -277,8 +276,7 @@ scripts/
 ├── lib/                      # Shared library
 │   ├── schema.py             #   tag definitions
 │   ├── sdf_io.py             #   SDF read/write helpers
-│   ├── parquet_io.py         #   Parquet batch I/O
-│   └── antechamber_xyz_reord.sh  # AMBER backend helper
+│   └── parquet_io.py         #   Parquet batch I/O
 ├── tools/                    # Utility scripts (reporting, inspection)
 ├── Makefile                  # Full pipeline orchestration
 ├── DATA_PRESERVATION.md      # Archival policy

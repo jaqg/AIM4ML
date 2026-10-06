@@ -7,7 +7,7 @@ molecular structures (PhD Chapter 1, QTCOVI group, Universidad de Oviedo).
 
 | Directory | Purpose |
 |-----------|---------|
-| `curation/` | 11-stage curation pipeline (00–10): validation, splitting, energy prefilter, property filtering, deduplication, stereo filtering, conformer filtering, RDKit/AMBER reordering, statistics, extXYZ export. Includes QMugs/QM40 converters. See `curation/README.md`. |
+| `curation/` | 11-stage curation pipeline (00–10): validation, splitting, energy prefilter, property filtering, deduplication, stereo filtering, conformer filtering, RDKit canonical reordering, statistics, extXYZ export. Includes QMugs/QM40 converters. See `curation/README.md`. |
 | `curation/tests/` | Curation pipeline test suite (pytest). |
 | `selection/` | Selection pipeline: descriptor computation, environment analysis, greedy diverse subset selection. See `selection/README.md`. |
 | `selection/tests/` | Selection pipeline test suite (pytest). |
@@ -40,9 +40,9 @@ make -C selection test
 Coverage: **88%** (pytest-cov; subprocess measurement via
 `COVERAGE_PROCESS_START=$PWD/.coveragerc` — the `.pth` hook lives in the
 venv, opt-in per run). Core stages 91–99%; known skip: `07_reorder.py`
-~22% — its antechamber call paths need the AMBER binary, cluster-only
-(tested there via real runs; local tests cover the pure-Python parts).
-Legacy QM40 one-off converters are untested by design.
+~26% — only its pure helper functions are locally tested; the CLI/main
+path (batch iteration, rejects SDF, provenance) is exercised only by real
+cluster runs. Legacy QM40 one-off converters are untested by design.
 
 ## Development
 

@@ -20,7 +20,7 @@ import sys
 
 from tqdm import tqdm
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
@@ -188,7 +188,7 @@ def _print_funnel(rows):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 8 — Descriptors and diversity statistics."
     )
@@ -220,11 +220,11 @@ def parse_args():
         metavar="COLUMN=VALUE",
         help="Exclude rows where COLUMN == VALUE (repeatable).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "09_stats")
@@ -429,4 +429,4 @@ def _plot_hist(data, xlabel, plots_dir, filename):
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

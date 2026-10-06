@@ -27,7 +27,7 @@ import math
 import os
 import sys
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
@@ -102,7 +102,7 @@ def validate_row(row):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="AIM4ML Stage 5 — Integrity cross-checks.")
     p.add_argument(
         "-i",
@@ -120,11 +120,11 @@ def parse_args():
     p.add_argument(
         "--skip", action="store_true", help="Skip validation entirely (for general pipeline runs)."
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.input_dir, "05_validate")
@@ -211,4 +211,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -23,7 +23,7 @@ import os
 import sys
 from collections import Counter
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
@@ -118,7 +118,7 @@ def mol_block_to_extxyz(mol_block, row, family="QM40"):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="AIM4ML Stage 9 — Build extXYZ trajectory files.")
     p.add_argument(
         "-i",
@@ -149,11 +149,11 @@ def parse_args():
         help="Exclude rows where COLUMN == VALUE (repeatable). "
         "Example: --exclude filter_status=rejected",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "10_extxyz")
@@ -216,4 +216,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

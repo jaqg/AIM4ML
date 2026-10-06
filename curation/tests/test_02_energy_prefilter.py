@@ -7,16 +7,28 @@ import sys
 import tempfile
 
 import numpy as np
-from lib.parquet_io import read_batch, write_batch
 from rdkit import Chem
 from rdkit.Chem import AllChem
+
+from lib.parquet_io import read_batch, write_batch
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "graph",
     "02_energy_prefilter.py",
 )
 
+SPLIT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
+    "common",
+    "01_split.py",
+)
+
+_prefilter_path_dir = os.path.dirname(SCRIPT)
+if _prefilter_path_dir not in sys.path:
+    sys.path.insert(0, _prefilter_path_dir)
 _prefilter = importlib.import_module("02_energy_prefilter")
 
 
@@ -72,7 +84,7 @@ class TestEnergyPrefilter:
             # Run split first
             split_cmd = [
                 sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                SPLIT,
                 valid_sdf,
                 "-o",
                 batches_dir,
@@ -109,7 +121,7 @@ class TestEnergyPrefilter:
 
             split_cmd = [
                 sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                SPLIT,
                 valid_sdf,
                 "-o",
                 batches_dir,
@@ -142,7 +154,7 @@ class TestEnergyPrefilter:
 
             split_cmd = [
                 sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                SPLIT,
                 valid_sdf,
                 "-o",
                 batches_dir,
@@ -163,7 +175,7 @@ class TestEnergyPrefilter:
 
             split_cmd = [
                 sys.executable,
-                os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                SPLIT,
                 valid_sdf,
                 "-o",
                 batches_dir,

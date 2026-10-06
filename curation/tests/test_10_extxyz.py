@@ -14,7 +14,7 @@ import sys
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdMolDescriptors
 
-_SCRIPT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+_SCRIPT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common")
 _SCRIPT = os.path.join(_SCRIPT_DIR, "10_extxyz.py")
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)

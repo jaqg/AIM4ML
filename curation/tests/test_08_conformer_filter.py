@@ -15,6 +15,7 @@ import pytest
 _SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "graph",
     "08_conformer_filter.py",
 )
 if os.path.dirname(_SCRIPT) not in sys.path:

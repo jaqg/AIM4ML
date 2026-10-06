@@ -13,11 +13,13 @@ from rdkit.Chem import AllChem, SDWriter
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "graph",
     "03_filter.py",
 )
 SPLIT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "common",
     "01_split.py",
 )
 
@@ -49,7 +51,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,
@@ -80,7 +82,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,
@@ -114,7 +116,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,
@@ -150,7 +152,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,

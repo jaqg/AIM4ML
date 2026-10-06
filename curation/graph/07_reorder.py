@@ -21,7 +21,7 @@ if _ROOT not in sys.path:
 
 from rdkit import Chem, RDLogger
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf

@@ -33,7 +33,7 @@ if _ROOT not in sys.path:
 from rdkit import Chem, RDLogger
 from rdkit.Chem import AllChem, rdDetermineBonds
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 
 def check_composition(

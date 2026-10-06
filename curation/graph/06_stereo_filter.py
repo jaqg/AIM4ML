@@ -37,7 +37,7 @@ if _ROOT not in sys.path:
 from rdkit import Chem, RDLogger, rdBase
 from rdkit.Chem.rdchem import BondStereo, ChiralType
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 from lib.parquet_io import read_batch, write_batch
 from lib.rdkit_version import check_min_rdkit

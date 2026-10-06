@@ -27,7 +27,7 @@ Sample data paths in Makefiles assume workspace location:
 ## Testing
 
 ```bash
-# From repo root (237 tests: 179 curation + 58 selection)
+# From repo root (249 tests: 191 curation + 58 selection)
 pytest curation/tests/ selection/tests/ -v
 
 # Or per package

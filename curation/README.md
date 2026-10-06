@@ -89,7 +89,8 @@ python3 02_energy_prefilter.py -i batches/ -o filtered_batches/ \
 ```bash
 python3 03_filter.py -i filtered_batches/ -o curated_batches/ \
     [--preset neutral_closed_shell] [--allowed-elements C,H,N,O,F,S,Cl,Br] \
-    [--min-heavy 4] [--max-heavy 200] [--force-keep-rejected]
+    [--min-heavy 4] [--max-heavy 200] [--min-fragments N] [--max-fragments N] \
+    [--force-keep-rejected]
 ```
 | Flag | Effect |
 |------|--------|
@@ -97,6 +98,34 @@ python3 03_filter.py -i filtered_batches/ -o curated_batches/ \
 | `--allowed-elements` | Comma‑separated allowed atomic symbols |
 | `--min-heavy` | Minimum number of heavy (non‑H) atoms |
 | `--max-heavy` | Maximum number of heavy (non‑H) atoms |
+| `--min-fragments` / `--max-fragments` | Optional fragment-count gate (CLI opt-in; the Makefile no longer sets it) |
+
+**Multi-fragment complexes are KEPT and TAGGED.** The Makefile default run no
+longer passes `--max-fragments 1`; salts, solvates and adducts flow through
+curation. Every kept row — including monomers — carries four metadata columns,
+grouped next to `n_fragments` in the Parquet schema:
+
+| Column | Content |
+|------|--------|
+| `fragment_formulas` | Hill-ordered formula per fragment, `;`-joined (e.g. `C9H8O4;H2O`) |
+| `fragment_smiles` | Canonical SMILES per fragment, `;`-joined |
+| `fragment_charges` | Net formal charge per fragment, `;`-joined (e.g. `1;-1` for salts) |
+| `fragment_heavy_atoms` | Heavy-atom count per fragment, `;`-joined |
+
+Fragment truth follows the SMILES tag when it parses (D62 priority —
+converter-topology errors cannot corrupt fragment identity); mol_block
+perception is only the fallback. Columns are always populated (single-item
+strings for monomers, never null); empty strings only for corrupt rows and
+for composition-rejected rows (dropped anyway; the rejection reason string
+carries the formulas). Fragment-level *policy* (drop/keep/largest/
+solute-only) is deliberately deferred to Selection — curation tags, it does
+not decide.
+
+Caveat (pre-existing, documented): rows whose SMILES tag is missing rely on
+geometry-based bond determination, which fabricates formal charges for
+charge-separated species — salts are then rejected by the net-charge check.
+Converter output always carries SMILES tags (D62), so this affects only
+tagless legacy inputs.
 
 #### Stage 4 — `04_dedup.py`
 ```bash
@@ -157,6 +186,9 @@ python3 10_extxyz.py -i conformer_batches/ -o extxyz/ \
 |------|--------|
 | `--family` | Dataset name written to extXYZ metadata (default: QM40) |
 | `--exclude` | Drop rows matching `COLUMN=VALUE` before writing (repeatable) |
+
+Frame metadata includes `nfrag` (from the row's `n_fragments` — complexes
+export `nfrag,2`) and `iconf`.
 
 ### Report utility
 

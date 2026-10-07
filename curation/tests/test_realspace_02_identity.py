@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-from conftest import (
+from realspace_fixtures import (
     XYZ_B2H6_EXTXYZ,
     XYZ_HEH_EXTXYZ,
     XYZ_HEH_EXTXYZ_TRANSLATED,

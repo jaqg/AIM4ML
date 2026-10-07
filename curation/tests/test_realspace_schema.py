@@ -4,7 +4,7 @@ import warnings
 
 import numpy as np
 import pytest
-from conftest import XYZ_HEH_EXTXYZ, XYZ_HEH_PERATOM_CHARGE, write_xyz_text
+from realspace_fixtures import XYZ_HEH_EXTXYZ, XYZ_HEH_PERATOM_CHARGE, write_xyz_text
 
 from curation.realspace.schema import (
     REALSPACE_COLUMNS,

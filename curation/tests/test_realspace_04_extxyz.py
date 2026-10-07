@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 import numpy as np
-from conftest import (
+from realspace_fixtures import (
     XYZ_HEH_EXTXYZ,
     XYZ_HEH_PERATOM_CHARGE,
     XYZ_LI4_EXTXYZ,

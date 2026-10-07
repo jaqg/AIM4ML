@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 import numpy as np
-from conftest import (
+from realspace_fixtures import (
     XYZ_HEH_EXTXYZ,
     XYZ_LI4_EXTXYZ,
     write_xyz_text,

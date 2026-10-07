@@ -4,8 +4,10 @@ Reproducible curation pipeline for quantum-chemistry molecular datasets. Convert
 
 The pipeline is organized as identity-model *tracks* (D70, class-conditional
 dispatch): **graph** (Lewis/SMILES world — CompoundID = MD5 of canonical
-SMILES, D62) and **realspace** (geometry-key world — placeholder, IQARIS
-application, not yet implemented). The track is declared at intake by the
+SMILES, D62) and **realspace** (geometry-key world — implemented: 01_ingest →
+04_extxyz geometry-key pipeline for IQARIS-style species that cannot be
+canonical-SMILES-represented; see `curation/realspace/README.md`). The track
+is declared at intake by the
 converter/driver; shared machinery lives in top-level `lib/`, genuinely
 shared stages in `curation/common/`. This README documents the graph track.
 
@@ -47,9 +49,11 @@ extxyz/*.xyz   +   stats/stats_summary.csv   +   stats/plots/
 | 9 | `curation/graph/09_stats.py` | graph | descriptors + histograms + Tanimoto diversity |
 | 10 | `curation/common/10_extxyz.py` | common | extended XYZ trajectory files (MLIP‑ready) |
 
-Realspace-track stages (future): `curation/realspace/` — geometry-key
-identity, ingest, dedup. Stage output directory names are unchanged by the
-track split.
+Realspace-track stages (`curation/realspace/`, see its README): `01_ingest`,
+`02_identity` (geometry-key dedup: exact-dup reject + near-dup clustering),
+`03_filter` (generic scalar filter with presets), `04_extxyz` (delivery,
+neutral tags), plus `schema.py`/`identity.py` libraries. Stage output
+directory names are unchanged by the track split.
 
 ## Dependencies
 
@@ -356,7 +360,7 @@ AIM4ML/
 │   ├── common/               # shared stages (identity-neutral)
 │   │   ├── 01_split.py
 │   │   └── 10_extxyz.py
-│   ├── realspace/            # geometry-key track placeholder (IQARIS)
+│   ├── realspace/            # geometry-key track (IQARIS: 01_ingest–04_extxyz)
 │   ├── tests/                # pytest suite
 │   ├── tools/                # utility scripts (reporting, inspection)
 │   ├── DATA_PRESERVATION.md  # archival policy

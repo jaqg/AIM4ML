@@ -8,7 +8,7 @@ molecular structures (PhD Chapter 1, QTCOVI group, Universidad de Oviedo).
 | Directory | Purpose |
 |-----------|---------|
 | `lib/` | Identity-neutral shared machinery (D70): Parquet batch I/O, SDF I/O, provenance, parallel map, RDKit version gate, tag/column registries. Used by both identity-model tracks + selection. |
-| `curation/` | Curation pipeline, split into identity-model tracks (D70): `curation/graph/` (stages 00–10 + graph identity schema — Lewis/SMILES world), `curation/common/` (shared stages `01_split`, `10_extxyz`), `curation/realspace/` (geometry-key track placeholder — IQARIS, not yet implemented), `curation/tests/`. See `curation/README.md`. |
+| `curation/` | Curation pipeline, split into identity-model tracks (D70): `curation/graph/` (stages 00–10 + graph identity schema — Lewis/SMILES world), `curation/common/` (shared stages `01_split`, `10_extxyz`), `curation/realspace/` (geometry-key track — implemented: `01_ingest` → `04_extxyz` for IQARIS-style species; see `curation/realspace/README.md`), `curation/tests/`. See `curation/README.md`. |
 | `converters/` | Dumb per-source converters: raw dataset → pipeline-standard SDF (`convert_qm40.py`, `convert_qmugs.py`). |
 | `drivers/` | Thin per-source recipe scripts composing the stage chain; source knowledge (track + flags) legally lives here (`qm40_curation.py`, `qmugs_curation.py`). |
 | `selection/` | Selection pipeline: descriptor computation, environment analysis, greedy diverse subset selection. See `selection/README.md`. |

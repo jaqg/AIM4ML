@@ -74,7 +74,7 @@ Each stage is a standalone script — run independently, swap backends, tune thr
 script path from the repo root, e.g. `python curation/graph/03_filter.py`.
 Each stage bootstraps the repo root onto `sys.path` itself, so this works
 from any working directory. Full-pipeline runs go through the drivers
-(`make qm40` / `python drivers/qm40_curation.py`), which call the same
+(`python drivers/qm40_curation.py`), which call the same
 stages in-process.
 
 ### Input/Output conventions
@@ -262,26 +262,31 @@ python3 curation/common/10_extxyz.py -i conformers/ -o extxyz/ --family MyDatase
 ## Quick Start
 
 ```bash
-# From repo root — full graph-track chain via the per-source driver
-cd curation
-make sample                              # qm40 driver, sample data
-make qm40 ARGS="--mode full --workers 40"
-make qmugs                               # QMugs driver
+# From repo root
+python drivers/qm40_curation.py --mode sample     # QM40 driver, sample data
+python drivers/qm40_curation.py --mode full --workers 40
+python drivers/qmugs_curation.py                  # QMugs driver
+python drivers/qm40_curation.py --dry-run         # print stage chain, run nothing
 
-# Or call the driver directly
-python drivers/qm40_curation.py --mode sample --workers 8
-python drivers/qm40_curation.py --dry-run    # print stage chain, run nothing
+# Per-stage (debugging; run script directly)
+python curation/graph/00_validate.py <input.sdf> -o /tmp/valid.sdf
+python curation/graph/03_filter.py -i batches/ -o curated/ --workers 4
 
-# Per-stage pass-throughs (debugging; no stamps — every run executes)
-make stage0 ARGS="../../AIM4ML-workspace/samples/qm40_input.sdf -o /tmp/valid.sdf"
-make stage3 ARGS="-i batches/ -o curated/ --workers 4"
-
-# Run test suite
-make test
+# Run test suite (from repo root)
+pytest curation/tests/ -v
 ```
 
-No stamp files: the driver runs the full chain each invocation; every stage
-records its own provenance into `<BASE>/provenance.json` (`lib/provenance.py`).
+No Makefile, no stamps: drivers run the full chain each invocation; every
+stage records its own provenance into `<BASE>/provenance.json`
+(`lib/provenance.py`).
+
+Intermediates can be removed whenever (regenerable from input SDF):
+
+```bash
+rm -rf ../AIM4ML-workspace/samples/{batches,filtered_batches,curated_batches,\
+deduped_batches,stereo_batches,reordered_batches,conformer_batches,\
+extxyz,stats,rejects,qm40_input_valid.sdf}
+```
 
 ## Data Contract
 
@@ -354,7 +359,6 @@ AIM4ML/
 │   ├── realspace/            # geometry-key track placeholder (IQARIS)
 │   ├── tests/                # pytest suite
 │   ├── tools/                # utility scripts (reporting, inspection)
-│   ├── Makefile              # alias table: qm40 / qmugs / sample / stage0-10
 │   ├── DATA_PRESERVATION.md  # archival policy
 │   └── README.md             # this file
 └── selection/                # selection pipeline (stages + selection/lib)

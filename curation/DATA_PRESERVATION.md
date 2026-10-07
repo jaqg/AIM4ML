@@ -34,10 +34,7 @@ Per-stage provenance is recorded by each stage into `<BASE>/provenance.json`
 The full pipeline is reproducible from `input.sdf` alone:
 
 ```bash
-# Alias table (curation/Makefile)
-make qm40 ARGS="--mode full --workers 40"
-
-# Or the driver directly (from repo root)
+# Per-source driver (from repo root)
 python drivers/qm40_curation.py --mode full --workers 40
 ```
 

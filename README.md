@@ -16,20 +16,19 @@ molecular structures (PhD Chapter 1, QTCOVI group, Universidad de Oviedo).
 
 ## Usage
 
-Curation is driven by per-source drivers; the Makefile is an alias table:
+Curation is driven by per-source thin recipes under `drivers/` (each encodes
+one source → one stage chain):
 
 ```bash
-cd curation && make qm40          # → python ../drivers/qm40_curation.py
-cd curation && make qmugs         # → python ../drivers/qmugs_curation.py
-cd curation && make sample        # qm40 driver on sample data
-cd curation && make qm40 ARGS="--mode full --workers 40"
-python drivers/qm40_curation.py --dry-run   # print stage chain
-
-cd selection && make              # selection stages (human-in-the-loop)
+python drivers/qm40_curation.py --mode sample    # QM40 on sample data
+python drivers/qm40_curation.py --mode full --workers 40
+python drivers/qmugs_curation.py                 # QMugs
+python drivers/qm40_curation.py --dry-run        # print stage chain, run nothing
 ```
 
-Sample data paths in Makefiles assume workspace location:
-`../AIM4ML-workspace/samples/`
+Workspace data paths assume the default location
+`../AIM4ML-workspace/samples/` (sample mode); override with `--base`.
+No Makefile — direct drivers are the interface.
 
 ## Testing
 
@@ -40,8 +39,7 @@ pytest curation/tests/ selection/tests/ -v
 # Or per package
 pytest curation/tests/ -v
 pytest selection/tests/ -v
-make -C curation test
-make -C selection test
+make -C selection test          # selection still ships its own Makefile
 ```
 
 Coverage: **88%** (pytest-cov; subprocess measurement via

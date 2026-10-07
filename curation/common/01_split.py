@@ -17,12 +17,13 @@ import argparse
 import os
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from rdkit import Chem
 
 from lib.parquet_io import write_batch
-from rdkit import Chem
 
 # -- SDF → row extraction ------------------------------------------------
 
@@ -78,7 +79,7 @@ def extract_row(mol):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 1 — Split validated SDF into Parquet batches."
     )
@@ -93,11 +94,11 @@ def parse_args():
     p.add_argument(
         "-b", "--batch-size", type=int, default=5000, help="Molecules per batch (default: 5000)."
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "01_split")
@@ -146,4 +147,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

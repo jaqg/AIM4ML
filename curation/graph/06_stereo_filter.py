@@ -30,14 +30,14 @@ import argparse
 import os
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from rdkit import Chem, RDLogger, rdBase
 from rdkit.Chem.rdchem import BondStereo, ChiralType
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 from lib.parquet_io import read_batch, write_batch
 from lib.rdkit_version import check_min_rdkit
@@ -242,7 +242,7 @@ def _are_opposite_descriptors(d_a, d_b):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="AIM4ML Stage 6 — Enantiomer filter (SMILES-based).")
     p.add_argument(
         "-i",
@@ -275,11 +275,11 @@ def parse_args():
         action="store_true",
         help="Always use substructure-based stereo comparison (slower, correct).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "06_stereo_filter")
@@ -482,4 +482,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

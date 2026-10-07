@@ -42,11 +42,12 @@ import argparse
 import os
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 import numpy as np
+
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
 
@@ -147,7 +148,7 @@ def fit_ols(X, y):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 2 — Energy outlier detection (OLS atom-type)."
     )
@@ -200,11 +201,11 @@ def parse_args():
         action="store_true",
         help="Keep flagged molecules in output (default: drop them).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "02_energy_prefilter")
@@ -361,4 +362,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

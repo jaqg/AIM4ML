@@ -23,13 +23,14 @@ from rdkit.Chem import AllChem
 _SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "graph",
     "06_stereo_filter.py",
 )
 if os.path.dirname(_SCRIPT) not in sys.path:
     sys.path.insert(0, os.path.dirname(_SCRIPT))
 
+from curation.graph.schema import compound_id
 from lib.parquet_io import read_batch, write_batch
-from lib.schema import compound_id
 
 # -----------------------------------------------------------------------
 # Helpers

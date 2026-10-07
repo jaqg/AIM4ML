@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 from rdkit import Chem
 
-from curation.lib.parquet_io import read_batch
+from lib.parquet_io import read_batch
 from selection.lib import descriptors as dsc
 from selection.lib import schema
 

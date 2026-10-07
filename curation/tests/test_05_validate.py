@@ -15,7 +15,7 @@ import sys
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-_SCRIPT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+_SCRIPT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "graph")
 _SCRIPT = os.path.join(_SCRIPT_DIR, "05_validate.py")
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)

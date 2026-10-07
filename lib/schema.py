@@ -1,11 +1,13 @@
 """
-schema.py — Canonical SDF property tag definitions for the AIM4ML curation pipeline.
+schema.py — Identity-neutral SDF tag + Parquet column registries (shared lib).
+
+Used by both identity-model tracks (graph + realspace) via lib/parquet_io and
+the validate stage. Graph-track identity semantics (CompoundID = MD5 of
+canonical SMILES, D62) live in curation/graph/schema.py — NOT here.
 
 Every stage references these constants. A single source of truth so changing
 a tag name or type only requires an edit here.
 """
-
-import hashlib
 
 # -- Required tags (pipeline will reject molecules missing these) ----------
 
@@ -44,17 +46,6 @@ COMPUTED_TAGS = {
     "logP": float,
     "nrot": int,
 }
-
-# -- Utility ---------------------------------------------------------------
-
-
-def compound_id(canonical_smiles):
-    """
-    CompoundID = MD5(canonical SMILES).
-    Stable, deterministic, SMILES-defined molecular identity.
-    """
-    return hashlib.md5(canonical_smiles.encode("utf-8")).hexdigest()
-
 
 # -- Parquet schema ------------------------------------------------------
 # Column names and dtypes for the internal Parquet batch files.

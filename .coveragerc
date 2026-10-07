@@ -1,7 +1,7 @@
 [run]
 branch = True
 parallel = True
-source = curation,selection
+source = lib,curation,selection
 
 [report]
 show_missing = True

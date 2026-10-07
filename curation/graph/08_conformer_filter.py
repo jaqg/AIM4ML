@@ -28,13 +28,13 @@ import sys
 
 import numpy as np
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from rdkit import Chem, RDLogger
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 from lib.parallel import parallel_map
 from lib.parquet_io import read_batch, write_batch
@@ -299,7 +299,7 @@ RMSD_NORM_MIN = 0.05
 RMSD_NORM_MAX = 0.50
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 8 — Conformer deduplication (heavy-atom RMSD)."
     )
@@ -365,11 +365,11 @@ def parse_args():
         default=1,
         help="Worker processes for the MaxMin distance matrix (default: 1).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "08_conformer_filter")
@@ -553,4 +553,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

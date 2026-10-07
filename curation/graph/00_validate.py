@@ -27,18 +27,19 @@ import sys
 
 # Ensure the lib/ directory is importable when the script is run from
 # anywhere relative to the scripts folder.
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from rdkit.Chem import SDWriter
 
 from lib.schema import OPTIONAL_TAGS, RECOMMENDED_TAGS, REQUIRED_TAGS
 from lib.sdf_io import read_sdf, validate_tags
-from rdkit.Chem import SDWriter
 
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="AIM4ML Stage 0 — Validate input SDF contract.")
     p.add_argument("input_sdf", type=str, help="Path to pipeline input SDF.")
     p.add_argument(
@@ -57,7 +58,7 @@ def parse_args():
     p.add_argument(
         "--lenient", action="store_true", help="Warn on required-tag failures instead of rejecting."
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def write_sdf(path, entries):
@@ -75,8 +76,8 @@ def write_sdf(path, entries):
     os.replace(tmp, path)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
 
     # Resolve output path
     if args.output:
@@ -154,4 +155,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

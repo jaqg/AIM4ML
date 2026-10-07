@@ -8,6 +8,7 @@ import tempfile
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "common",
     "01_split.py",
 )
 
@@ -61,8 +62,9 @@ class TestSplit:
     def test_mol_block_reconstructible(self, valid_sdf):
         with tempfile.TemporaryDirectory() as tmp:
             run_split(valid_sdf, tmp, batch_size=10)
-            from lib.parquet_io import read_batch
             from rdkit import Chem
+
+            from lib.parquet_io import read_batch
 
             batch = read_batch(os.path.join(tmp, "batch_0000.parquet"))
             for row in batch:

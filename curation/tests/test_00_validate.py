@@ -8,6 +8,7 @@ import tempfile
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "graph",
     "00_validate.py",
 )
 

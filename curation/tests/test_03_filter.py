@@ -13,11 +13,13 @@ from rdkit.Chem import AllChem, SDWriter
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "graph",
     "03_filter.py",
 )
 SPLIT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
+    "common",
     "01_split.py",
 )
 
@@ -49,7 +51,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,
@@ -80,7 +82,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,
@@ -114,7 +116,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,
@@ -125,8 +127,9 @@ class TestFilter:
             )
             run_filter(batches_dir, out_dir, extra_args=["--force-keep-rejected"])
 
-            from lib.parquet_io import read_batch
             from rdkit import Chem
+
+            from lib.parquet_io import read_batch
 
             files = sorted(f for f in os.listdir(out_dir) if f.endswith(".parquet"))
             if not files:
@@ -149,7 +152,7 @@ class TestFilter:
             subprocess.run(
                 [
                     sys.executable,
-                    os.path.join(os.path.dirname(SCRIPT), "01_split.py"),
+                    SPLIT,
                     valid_sdf,
                     "-o",
                     batches_dir,

@@ -23,14 +23,14 @@ import math
 import os
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from rdkit import Chem, RDLogger, rdBase
 from rdkit.Chem import AllChem
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 from lib.parquet_io import read_batch, write_batch
 from lib.rdkit_version import check_min_rdkit
@@ -125,7 +125,7 @@ def _extract_atropisomer_key(mol):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 4 — Dedup: canonical SMILES + CompoundID + conformer removal."
     )
@@ -155,11 +155,11 @@ def parse_args():
         help="Keep rejected molecules (bond_assignment_failed, mol_corrupt) "
         "in the output Parquet batches (default: drop them).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "04_dedup")
@@ -290,4 +290,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

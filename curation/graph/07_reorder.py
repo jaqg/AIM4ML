@@ -15,13 +15,13 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from rdkit import Chem, RDLogger
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 from lib.parquet_io import read_batch, write_batch
 from lib.sdf_io import write_reject_sdf
@@ -56,7 +56,7 @@ def reorder_rdkit(mol_block):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="AIM4ML Stage 7 — Canonical atom reordering.")
     p.add_argument(
         "-i",
@@ -86,11 +86,11 @@ def parse_args():
         action="store_true",
         help="Keep molecules that fail reordering (default: drop them).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "07_reorder")
@@ -166,4 +166,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

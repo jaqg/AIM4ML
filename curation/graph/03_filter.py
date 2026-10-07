@@ -26,14 +26,14 @@ import os
 import sys
 from collections import Counter
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from rdkit import Chem, RDLogger
 from rdkit.Chem import AllChem, rdDetermineBonds
 
-RDLogger.DisableLog("rdApp.*")
+RDLogger.DisableLog("rdApp.*")  # type: ignore[attr-defined]
 
 
 def check_composition(
@@ -378,7 +378,7 @@ def _process_row_parallel(row):
 # -- Main ----------------------------------------------------------------
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="AIM4ML Stage 3 — Chemical filter (neutral / non-zwitterion / closed-shell)."
     )
@@ -449,11 +449,11 @@ def parse_args():
         default=1,
         help="Parallel workers for per-molecule processing (default: 1).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     from lib.provenance import record_run
 
     record_run(args.output_dir, "03_filter")
@@ -571,4 +571,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

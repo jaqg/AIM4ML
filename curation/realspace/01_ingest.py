@@ -28,9 +28,15 @@ Rejects (mirrors graph-track convention):
   (read_xyz_frames raises XyzFormatError). Rejection granularity is
   therefore FILE-level for parse failures (reason carries the file:line
   context) and FRAME-level for semantic failures (bad header integers,
-  unknown element). Rejects are written as a Parquet batch
+  unknown element). Documented extension (post-merge, YAGNI now): a tolerant
+  reader mode (e.g. read_xyz_frames(on_error="skip")) would restore
+  frame-level granularity for parse failures without changing this stage.
+  Rejects are written as a Parquet batch
   (<rejects-dir>/ingest_rejected.parquet) with source_id + reason columns,
-  plus a .REJECTED sentinel line when anything was rejected.
+  plus a .REJECTED sentinel line when anything was rejected. source_id in
+  rejects: frame-level rejects carry the full "<basename>:<index>" form;
+  file-level parse rejects carry the BARE "<basename>" (no invented index
+  — the colon-free form itself distinguishes the granularity).
 
 Usage:
     python 01_ingest.py INPUT_DIR -o batches/ --pattern "*.xyz" --batch-size 5000

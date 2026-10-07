@@ -40,6 +40,10 @@ dropped rows carry the id of the nearest kept representative. Numbering
 is GLOBAL and monotonic in encounter order (graph 08 numbers per
 CompoundID group; realspace has no scoping column, so registry-wide
 unique ids are strictly more informative — same semantics, wider scope).
+Global ids depend on batch encounter order: deterministic for a fixed
+input order, but re-ordered inputs shift the numbering while the
+clustering RESULTS (kept/dropped partition, near-dup assignments) stay
+identical.
 
 Near-dup is nuclear-geometry-only: per-atom charges do NOT enter the
 decision (conformer_rmsd takes symbols + coords). Total charge and

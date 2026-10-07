@@ -232,6 +232,32 @@ He 0.000000 0.000000 0.000000
 H 0.772000 0.000000 0.000000
 """
 
+XYZ_LI4_EXTXYZ = """4
+Properties=species:S:1:pos:R:3 charge=0 multiplicity=1
+Li 0.000000 0.000000 0.000000
+Li 3.000000 0.000000 0.000000
+Li 1.000000 2.500000 0.300000
+Li 0.800000 0.600000 2.700000
+"""
+
+XYZ_B2H6_EXTXYZ = """8
+Properties=species:S:1:pos:R:3 charge=0 multiplicity=1
+B 0.000000 0.000000 1.190000
+B 0.000000 0.000000 -1.190000
+H 0.000000 1.200000 0.000000
+H 0.000000 -1.200000 0.000000
+H 1.030000 0.000000 1.830000
+H -1.030000 0.000000 1.830000
+H 1.030000 0.000000 -1.830000
+H -1.030000 0.000000 -1.830000
+"""
+
+XYZ_BAD_CHARGE_HEADER = """2
+Properties=species:S:1:pos:R:3 charge=notanumber multiplicity=1
+He 0.000000 0.000000 0.000000
+H 0.772000 0.000000 0.000000
+"""
+
 
 def write_xyz_text(tmp_path, text, name="input.xyz"):
     """Write xyz fixture text to tmp_path/name; returns the Path."""

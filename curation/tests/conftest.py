@@ -201,6 +201,45 @@ def missing_optional():
     os.unlink(path)
 
 
+# -----------------------------------------------------------------------
+# Realspace xyz fixture texts (semantic cases, reviewable constants).
+# Coordinates are %.6f-representable so xyz_io round-trips are value-exact.
+# -----------------------------------------------------------------------
+
+XYZ_HEH_EXTXYZ = """2
+Properties=species:S:1:pos:R:3 charge=1 multiplicity=1
+He 0.000000 0.000000 0.000000
+H 0.772000 0.000000 0.000000
+"""
+
+XYZ_HEH_PERATOM_CHARGE = """2
+Properties=species:S:1:pos:R:3:charge:R:1 charge=1 multiplicity=1
+He 0.000000 0.000000 0.000000 0.300000
+H 0.772000 0.000000 0.000000 -0.300000
+"""
+
+XYZ_HEH_PLAIN = """2
+HeH+ cation
+He 0.000000 0.000000 0.000000
+H 0.772000 0.000000 0.000000
+"""
+
+XYZ_TWO_FRAMES = XYZ_HEH_EXTXYZ + "\n" + XYZ_HEH_PLAIN
+
+XYZ_MALFORMED_EOF = """3
+Properties=species:S:1:pos:R:3
+He 0.000000 0.000000 0.000000
+H 0.772000 0.000000 0.000000
+"""
+
+
+def write_xyz_text(tmp_path, text, name="input.xyz"):
+    """Write xyz fixture text to tmp_path/name; returns the Path."""
+    path = tmp_path / name
+    path.write_text(text)
+    return path
+
+
 @pytest.fixture
 def empty_sdf():
     """Creates an empty SDF (actually, SDWriter with 0 mols — RDKit may not
